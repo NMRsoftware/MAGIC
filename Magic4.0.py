@@ -966,7 +966,7 @@ scaler=len(HMQC_peak_list)/float(100)
 FILTER_start=np.mean(peak_matrix_Scoring.sum(axis=0))#*len(HMQC_peak_list)
 
 file_log.write('Mean maximal peak score and scaler: '+str(FILTER_start)+'; '+str(scaler)+'\n')
-#calcul=peak_matrix_clustering[np.where(peak_matrix_clustering>0)]
+calcul=peak_matrix_clustering[np.where(peak_matrix_clustering>0)]
 main_confident=np.mean(calcul)
 file_log.write('Average peak connection confidence score: '+str(main_confident)+'\n')
 
