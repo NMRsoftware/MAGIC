@@ -23,7 +23,7 @@
  ############## STEP 2:
  type the following command:
  
- >python generate.py [2D peak list file name] 
+  python generate.py [2D peak list file name] 
                      [construct sequence file name, fasta format]
                      [labeling, e.g. AILMTV]
                      [starting sequence number, e.g. 48]
