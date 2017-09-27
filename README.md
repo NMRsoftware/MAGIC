@@ -3,14 +3,14 @@
   
  -Needs Anaconda python2.7 installed:
  -https://www.anaconda.com/download/
- +!!!!!!!!! Needs Anaconda python2.7 installed: https://www.anaconda.com/download/ !!!!!!!!
- +
- +_________________________________________________________________________________________
- +
- +############## STEP 1:
- +Put all files in the same directory and open the terminal
- +
- +Input files:
+ !!!!!!!!! Needs Anaconda python2.7 installed: https://www.anaconda.com/download/ !!!!!!!!
+ 
+ _________________________________________________________________________________________
+ 
+ ############## STEP 1:
+ Put all files in the same directory and open the terminal
+ 
+ Input files:
  +- 2D peak list
  +- 3D peak list
  +- PDB file
