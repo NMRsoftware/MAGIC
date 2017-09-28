@@ -1,9 +1,11 @@
 # MAGIC
-  MAGIC methyl assignment and dataset
+  MAGIC methyl assignment and Demo datasets
   
  -Needs Anaconda python2.7 installed:
  -https://www.anaconda.com/download/
- !!!!!!!!! Needs Anaconda python2.7 installed: https://www.anaconda.com/download/ !!!!!!!!
+ 
+ For new distribution of python Anaconda5.0.0 use magic_v1.0_anaconda5.0.0.py 
+ for existing python installations Anaconda4.4.0 or earlier use Magic_v1.0.py
  
  _________________________________________________________________________________________
  
