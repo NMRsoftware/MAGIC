@@ -8,6 +8,9 @@
  for existing python installations Anaconda4.4.0 or earlier use Magic_v1.0.py
  
  _________________________________________________________________________________________
+ Need to add PDB file preparation!
+ 
+ 
  
  ############## STEP 1:
  Put all files in the same directory and open the terminal
