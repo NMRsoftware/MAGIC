@@ -416,7 +416,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		if 'V' in s.labeling:self.summary_list.append('V    %3d         %3d       %3d       %3d' %(sV, uV, aV,cV))
 		if 'M' in s.labeling:self.summary_list.append('M    %3d         %3d       %3d       %3d' %(sM, uM, aM,cM))
 		if 'A' in s.labeling:self.summary_list.append('A    %3d         %3d       %3d       %3d' %(sA, uA, aA,cA))
-		if 'T' in s.labeling:self.summary_list.append('T    %3d         %3d       %3d       %3d' %(sT, uT, aI,cT))
+		if 'T' in s.labeling:self.summary_list.append('T    %3d         %3d       %3d       %3d' %(sT, uT, aT,cT))
 		if s.dimethyl == True or s.mono == True:
 			self.summary_list.append('Found %d of %d possible LV pairs' %((pairedV+pairedL+pairedLV),s.possible_pairs))
 			self.summary_list.append('Found %d of %d possible L pairs' %(pairedL,sL/2))
@@ -442,6 +442,14 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			self.summary_list.append('   Minimum assignment %2.1f%%' %((float(ULN)/len(s.Labels))*100.0))
 			self.summary_list.append('   Maximum assignment %2.1f%%' %((float(LN)/len(s.Labels))*100.0))
 			self.summary_list.append('   Fount %d isolated methyls' %(len(Isolated2)))
+			sx = range(0,len(Isolated2),4)[-1]
+			PDBiso = '   '
+			for x in range(0, len(Isolated2),4)[:-1]:
+				self.summary_list.append('   %s %s %s %s' %(Isolated2[x],Isolated2[x+1],Isolated2[x+2],Isolated2[x+3]))
+			lx = len(Isolated2) - sx
+			for lx in range(lx):
+				PDBiso = PDBiso + Isolated2[sx+lx] + ' '
+			self.summary_list.append(PDBiso)
 
 	# ---------------------------------------------------------------------------
 	#
@@ -536,6 +544,17 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 				ULNcount = ULNcount +1 
 				print acceptor
 
+		total = len(s.Labels) - tseq.count('L')/2 - tseq.count('V')/2
+		print 'Number of NOEs in Cm-CmHm 3D %d' %NOEcount
+		print 'number of local networks %d' %len(Netowrks)
+		print 'number of isolated methyls %d' %len(Isolated)
+		print 'number of in Used local networks %d' %len(Used)
+		print 'number of All local networks %d' %len(allULN)
+		print 'number of unique local networks %d' %len(ULN)
+		print 'number of fully unique local networks %d' %ULNcount
+		print 'Minimum assignment %2.1f%%' %((float(ULNcount)/len(s.Labels))*100.0)
+		print 'Maximum assignment %2.1f%%' %((float(len(Netowrks))/len(s.Labels))*100.0)
+		print Isolated
 		return NOEcount, ULNcount , len(Netowrks), Isolated
 
 	# ------------------------------------------------------------------------------
@@ -603,12 +622,17 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 							peak.assign(1, peak2.resonances()[1].group.name, peak2.resonances()[1].atom.name)
 							peak.show_assignment_label()
 						if peak2.assignment not in s.Labels:
+							if peak2.resonances()[0].group.number:
+								peak2.assign(0, mtype.lower() + str(peak2.resonances()[0].group.number), peak2.resonances()[0].atom.name)
+								peak2.assign(1, mtype.lower() + str(peak2.resonances()[1].group.number), peak2.resonances()[1].atom.name)
+								peak2.show_assignment_label()
+							if not peak2.resonances()[0].group.number:
+								idx = HMQCpeaks.index(peak2) + 1
+								peak2.assign(0, mtype.lower() + str(idx), 'C')
+								peak2.assign(1, mtype.lower() + str(idx), 'H')
+								peak2.show_assignment_label()
 							peak.assign(0, mtype.lower() + str(peak2.resonances()[0].group.number), peak2.resonances()[0].atom.name)
 							peak.assign(1, mtype.lower() + str(peak2.resonances()[1].group.number), peak2.resonances()[1].atom.name)
-							peak.show_assignment_label()
-							peak2.assign(0, mtype.lower() + str(peak2.resonances()[0].group.number), peak2.resonances()[0].atom.name)
-							peak2.assign(1, mtype.lower() + str(peak2.resonances()[1].group.number), peak2.resonances()[1].atom.name)
-							peak2.show_assignment_label()
 						retyped.append(peak2)
 						if peak2.note.split(): peak2type = peak2.note.split()[0]
 						else: peak2type = peak2.note
@@ -618,7 +642,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						group = peak3.resonances()[0].group.name
 						for me in s.typelabeling:
 							peak3.note = peak3.note.replace(me,'')
-							group = group.replace(me,'')
+							group = group.replace(me.lower(),'')
 						peak3.assign(0,group, peak3.resonances()[0].atom.name)
 						peak3.assign(1,group, peak3.resonances()[1].atom.name)
 						peak3.show_assignment_label()
@@ -645,21 +669,15 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 							Pme = round(m.exp(-((m.pow((peak.frequency[0] -MeCSdict[me][0]),2)/(2*m.pow(MeCSdict[me][1],2)))+(m.pow((peak.frequency[1]-MeCSdict[me][2]),2)/(2*m.pow(MeCSdict[me][3],2))))),6)
 							total = total + Pme
 							TypeProb['P'+ me] = Pme
-							print 'Probablity of %s %e' %(me, TypeProb['P'+ me])
 						total = total + 1E-07
 						for me in s.labeling:
 							if (TypeProb['P'+ me] / total) >= MeTypedict[me]:
 								mtype = mtype + me
 						if len(mtype) == 0:
 							mtype = s.labeling
-						print 'typed as %s' %mtype
 					peak.note = mtype
 				if peak.is_assigned == 0:
 					group = peak.note.split()[0].lower() + str(x)
-					# if peak.note.split()[0] in MEA.keys():
-					# 	peak.assign(0,group,MEA[peak.note.split()[0]][0])
-					# 	peak.assign(1,group,MEA[peak.note.split()[0]][1])
-					# if peak.note.split()[0] not in MEA.keys():
 					peak.assign(0,group,'C')
 					peak.assign(1,group,'H')
 					peak.show_assignment_label()
@@ -710,11 +728,12 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		if s.hmqc_spectrum.dimension != 2:
 			tkMessageBox.showinfo('Input Error', "Please Select 2D Methyl Spectrum")
 			return
+		self.Type_peaks()	# run type peaks so that all the peaks will have a type and temporary assignment
 		HMQCpeaks = s.hmqc_spectrum.peak_list()
 		LVpeaks = []
 		for me in range(len(HMQCpeaks)):
 			if 'L' in HMQCpeaks[me].note or 'V' in HMQCpeaks[me].note :
-				if ";" in HMQCpeaks[me].note:
+				if "C" in HMQCpeaks[me].note:
 					HMQCpeaks[me].note = HMQCpeaks[me].note.split()[0]
 				LVpeaks.append(me)
 		Used = []
@@ -758,10 +777,19 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						self.add_note_tempassignment(HMBCpeaks[HMBC_A], HMBCpeaks[HMBC_D], me1, me2, self.LVcount)
 						message = ('Checking possible combination %d \nFound %d of possible geminal pairs %d' % (self.count, self.LVcount, s.possible_pairs))
 						self.progress_report(message)
-		# HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
-		# x = 0
-		# for peak in HMQCpeaks:
 
+		## Clean up LV assignment, only LV peaks which are paired should have C1-H1/C2-H2 as atom names 
+		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		x = 0
+		for peak in HMQCpeaks:
+			x= x+1 
+			if 'L' in peak.note or 'V' in peak.note:
+				if "C" not in peak.note:
+					if peak.assignment not in s.Labels:
+						group = peak.note.split()[0].lower() + str(x)
+						peak.assign(0,group,'C')
+						peak.assign(1,group,'H')
+						peak.show_assignment_label()
 
 		self.stoppable_call(self.show_summary)
 
@@ -784,19 +812,25 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 				me2.note = me1.resonances()[0].group.symbol
 				metype = group1[0]
 			if group1 != group2:
-				if group1[0] != group2[0]:
+				if me1.resonances()[0].group.symbol.upper() != me2.resonances()[0].group.symbol.upper():
 					metype = 'LV'
-					group =metype.lower()+str(count)
-				if group1[0] == group2[0]:
+					group = 'LV' + str(count)
+				if me1.resonances()[0].group.symbol.upper() == me2.resonances()[0].group.symbol.upper():
 					metype = group1[0]
 					group =metype.lower()+str(count)
 				a1C = MEA2[metype][0]+'1'
 				a1H = MEA2[metype][1]+'1'
 				a2C = MEA2[metype][0]+'2'
 				a2H = MEA2[metype][1]+'2'
-				me1.note = metype + ':' + me1.assignment
-				me2.note = metype + ':' + me2.assignment
-		if me1.assignment not in s.Labels or me2.assignment not in s.Labels:
+				if me1.assignment in s.Labels:
+					me1.note = metype + ':' + me1.assignment
+				if me1.assignment not in s.Labels:
+					me1.note = metype
+				if me2.assignment in s.Labels:
+					me2.note = metype + ':' + me2.assignment
+				if me2.assignment not in s.Labels:
+					me2.note = metype
+		if me1.assignment not in s.Labels and me2.assignment not in s.Labels:
 			me1_type = me1.note.replace('T','').replace('A','').split(' ')[0]
 			me2_type = me2.note.replace('T','').replace('A','').split(' ')[0]
 			if len(me1_type) < len(me2_type):
@@ -885,8 +919,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			Donors = [peak for peak in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak].frequency[1] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[2] - me1.frequency[1]) < s.Htol) and peak not in Used]
 			if len(Donor_check) == 0:
 				me1.color = 'dark red'
-				if '#iso' not in me1.note:
-					me1.note = me1.note + ' #iso'
 			if len(Donors) >=1:
 				for donor in Donors:
 					## Find the possible peaks in the HMQC that have the same w1 frequency as the donor peak
