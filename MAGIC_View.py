@@ -20,7 +20,7 @@ import string
 # St Jude Children's Research Hospital 
 # Department of Structural Biology Memphis, TN 
 #
-# Last updates: September 1, 2021
+# Last updates: June 1, 2022
 #
 #
 # ------------------------------------------------------------------------------
@@ -104,7 +104,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
       return  self.close_cb
     self.sequence = sequence
     self.selection_notice = None
-    self.save_file = session.project.save_path.split('/')[-1].replace('.proj', '_pymol.txt')
+    self.save_file = session.project.save_path.split('/')[-1].replace('.proj', '.txt')
     tkutil.Dialog.__init__(self, session.tk, 'MAGIC-View')
     explain = ('Pymol Visualization and Assignment Accuracy Statistics\n') 
     w = Tkinter.Label(self.top, text = explain, justify = 'left')
@@ -158,6 +158,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
     self.ppm_range = er
 
     br = tkutil.button_row(self.top,
+                           ('Stats', self.show_summary2),
                            ('Compare', self.show_summary),
                            ('Save', self.save_pymol_cb),
                            ('Close', self.close_cb))
@@ -220,8 +221,6 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
     settings.pdb_path = self.pdb_path.get()
     settings.chains = self.chains.get().replace(',','')
     settings.labeling = self.labeling.get()
-
-
     settings.sequence = self.sequence
     settings.ref_spectrum = self.sc_ref_spectrum.spectrum()
     settings.spectrum_2 = self.sc_spectrum_2.spectrum()
@@ -237,7 +236,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
     file_opt = options = {}
     options['defaultextension'] = '.txt'
     options['filetypes'] = [('text file', '.txt')]
-    options['title'] = 'Save Pymol Script'
+    options['title'] = 'Save Pymol/Chimera X Script'
     options['initialdir'] = self.session.project.save_path
     options['initialfile'] = self.save_file
 
@@ -255,31 +254,34 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
     ## This will be used to determine missing assignments and generate selection statements.
 
     pdb_name = s.pdb_path.split('/')[-1].split('.')[0]
-    methyls = []
-    backbone = []
+    methyls,backbone, aromatic = [], [], []
+    showmet = 'show :'
+    showaro = 'show :'
     sdict = {}
     for (resi,resn) in self.sequence:
       sdict[resi] = resn+str(resi)
-      if resn in self.labeling.get():
+      if resn in ['I', 'L', 'V', 'M', 'A', 'T']:
           methyls.append(str(resi))
+      if resn in ['Y', 'F']:
+          aromatic.append(str(resi))
       if resn != 'P':
         backbone.append(str(resi))
 
-    smethyls = 'create methyl, '+ pdb_name +' and chain ' + s.chains + ' and resi ' + backbone[0] + '-' + backbone[-1] + ' and resn '
-    sbackbone = 'create backbone, '+ pdb_name +' and chain ' + s.chains + ' and resi '  + backbone[0] + '-' + backbone[-1] + '\n'
-
-    for me in self.labeling.get():
-      smethyls = smethyls + A_dict[me] + '+'
-    smethyls = smethyls[:-1] + '\nshow sticks, methyl\nhide sticks, name N+C\nhide sticks, elem H\nhide cartoon, methyl\n'
-
-
-    outfile = open(path,'w')
-    outstr  = "load %s\nset ray_opaque_background, 0\nset depth_cue, off\nbg_color white\nset label_color, black\nset ray_shadows, 0\
+    cmx_header = "open %s\nshow nucleic\nhide protein|solvent|H\nsurface hide\nstyle (protein|nucleic|solvent) & @@draw_mode=0 stick\ncartoon style modeHelix tube sides 20\ngraphics silhouettes tru\ncartoon style radius 1.5\nset bgColor white\n#style :ala,leu,ile,val,met,thr,phe,tyr ball\ncolor all gray(150)\n" %(s.pdb_path)
+    pml_header  = "load %s\nset ray_opaque_background, 0\nset depth_cue, off\nbg_color white\nset label_color, black\nset ray_shadows, 0\
     \nset orthoscopic, on\nhide everything, all\nshow cartoon, %s and chain %s and resi %s-%s\n" %(s.pdb_path, pdb_name, s.chains, backbone[0], backbone[-1])
+    
+    plm_out = open(path.replace('.txt', '_pymol.pml'),'w')
+    cmx_out = open(path.replace('.txt','_chimera.cxc'),'w')
 
-    outfile.write(outstr)
-    outfile.write("color gray70, %s and chain %s and resi %s-%s\n" %( pdb_name, s.chains, backbone[0], backbone[-1]))
+    plm_out.write(pml_header)
+    cmx_out.write(cmx_header)
+    plm_out.write("color gray70, %s and chain %s and resi %s-%s\n" %( pdb_name, s.chains, backbone[0], backbone[-1]))
+    mn = 1
     for spectrum in s.spectrum_list:
+      mn+=1
+      cmx_out.write('combine #1 modelId %s name %s\ncartoon style radius 1.5\n' %(mn, spectrum.name))
+      plm_out.write('create %s, %s and chain %s\n'%(spectrum.name, pdb_name, s.chains))
       assigned = []
       tentative = []
       used = []
@@ -287,8 +289,6 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
         peak = label.peak
         if '?' not in peak.assignment:
           if (peak.resonances()[0].group.number, peak.resonances()[0].group.name[0]) in self.sequence:
-            print peak.color
-            print label.color
             if 'green' in peak.color.lower() or 'green' in label.color.lower():
                 if int(peak.resonances()[0].group.number) not in assigned:
                   assigned.append(int(peak.resonances()[0].group.number))
@@ -311,97 +311,104 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 
       if '13C' in spectrum.nuclei:
+        if spectrum.region[0][0] < 40:
+          assignments = methyls
+          showstr = 'show #%s:ala,val,leu,met,ile,thr\n' %mn
+          pmlshow = 'show sticks, %s and resn ALA+VAL+LEU+MET+ILE+THR\nhide sticks, name N+C\nhide sticks, elem H\ncolor red, elem O\ncolor gold, elem S\n' %spectrum.name
+        if spectrum.region[0][0] > 40:
+          assignments = aromatic
+          showstr = 'show #%s:phe,thr\n' %mn
+          pmlshow = 'show sticks, %s and resn PHE+TYR\nhide sticks, name N+C\nhide sticks, elem H\ncolor red, elem O\n' %spectrum.name
         unassigned = []
-        for resi in methyls:
+        for resi in assignments:
           if resi not in used: unassigned.append(int(resi))
-        outfile.write(smethyls)
         if len(assigned) != 0:
-          if len(assigned) > 200: 
-            sets = []
-            for x in range(0,len(assigned),200)[:-1]:sets.append((x,x+200))
-            sets.append((range(0,len(assigned),200)[-1],len(assigned)-1))
-            for (start, finish) in sets:
-              mgreens = 'color smudge, methyl and resi '
-              for g in range(start,finish,1)[:-1]:
-                mgreens = mgreens + str(assigned[g]) + '+'
-              mgreens = mgreens + str(assigned[finish])
-              outfile.write(greens + '\n')
-          if len(assigned) < 200: 
-            mgreens = 'color smudge, methyl and resi '
-            for g in range(len(assigned))[:-1]:
-              mgreens = mgreens + str(assigned[g]) + '+'
-            mgreens = mgreens + str(assigned[-1])
-            outfile.write(mgreens + '\n')
+          for x in range(0,len(assigned),50):
+            i = x
+            plmgreen = 'color smudge, %s and resi ' %spectrum.name
+            cmxgreen = 'color #%s:' %mn
+            for j in range(50):
+              plmgreen = plmgreen + str(assigned[i]) + '+'
+              cmxgreen = cmxgreen + str(assigned[i]) + ','
+              i=i+1
+              if i== len(assigned): break
+            plm_out.write(plmgreen[:-1] + '\n')
+            cmx_out.write(cmxgreen[:-1] + ' green target ac\n')
         if len(tentative) != 0:
-          if len(assigned) > 200: 
-            sets = []
-            for x in range(0,len(tentative),200)[:-1]:sets.append((x,x+200))
-            sets.append((range(0,len(tentative),200)[-1],len(tentative)-1))
-            for (start, finish) in sets:
-              mgolds = 'color gold, methyl and resi '
-              for t in range(start,finish,1)[:-1]:
-                mgolds = mgolds + str(tentative[t]) + '+'
-              mgolds = mgolds + str(tentative[finish]) 
-              outfile.write(mgolds+ '\n')
-          if len(tentative) < 200: 
-            mgolds = 'color gold, methyl and resi '
-            for t in range(len(tentative))[:-1]:
-              mgolds = mgolds + str(tentative[t]) + '+'
-            mgolds = mgolds + str(tentative[-1]) 
-            outfile.write(mgolds+ '\n')
-
-        if len(unassigned) !=0:
-          if len(unassigned) > 200: 
-            sets = []
-            for x in range(0,len(unassigned),200)[:-1]:sets.append((x,x+200))
-            sets.append((range(0,len(unassigned),200)[-1],len(unassigned)-1))
-            for (start, finish) in sets:
-              missing = '##### Unassigned methyls: '
-              mreds = 'color red, methyl and resi '
-              for r in range(start,finish,1)[:-1]:
-                missing = missing + sdict[unassigned[r]] + ' '
-                mreds = mreds + str(unassigned[r]) + '+' 
-              missing = missing + sdict[unassigned[finish]]
-              mreds = mreds  + str(unassigned[finish])
-              outfile.write(mreds+ '\n')
-          if len(unassigned) < 200:
-            missing = '##### Unassigned methyls %d: ' %(len(unassigned))
-            mreds = 'color red, methyl and resi '
-            for r in range(len(unassigned))[:-1]:
-              missing = missing + sdict[unassigned[r]] + ' '
-              mreds = mreds + str(unassigned[r]) + '+' 
-            missing = missing + sdict[unassigned[-1]]
-            mreds = mreds  + str(unassigned[-1])
-            outfile.write(mreds+ '\n')
-          outfile.write(missing+ '\n\n')
+          tassign = '##### Tentative Assigments %d: ' %(len(tentative))
+          for x in range(0,len(tentative),50):
+            i = x
+            plmgold = 'color gold, %s and resi ' %spectrum.name
+            cmxgold = 'color #%s:' %mn
+            for j in range(50):
+              tassign = tassign + sdict[tentative[i]] + ' '
+              plmgold = plmgold + str(tentative[i]) + '+'
+              cmxgold = cmxgold + str(tentative[i]) + ','
+              i=i+1
+              if i== len(tentative): break
+            plm_out.write(plmgold[:-1] + '\n')
+            cmx_out.write(cmxgold[:-1] + ' gold target ac\n')
+        if len(unassigned) != 0:
+          missing = '##### Unassigned Residues %d: ' %(len(unassigned))
+          for x in range(0,len(unassigned),50):
+            i = x
+            plmred = 'color red, %s and resi ' %spectrum.name
+            cmxred = 'color #%s:' %mn
+            for j in range(50):
+              missing = missing + sdict[unassigned[i]] + ' '
+              plmred = plmred + str(unassigned[i]) + '+'
+              cmxred = cmxred + str(unassigned[i]) + ','
+              i=i+1
+              if i== len(unassigned): break
+            plm_out.write(plmred[:-1] + '\n')
+            cmx_out.write(cmxred[:-1] + ' red target ac\n')
+        cmx_out.write(showstr)
+        plm_out.write(pmlshow)
+        if len(tentative) != 0:
+          plm_out.write(tassign+ '\n')
+          cmx_out.write(tassign+ '\n')
+        if len(unassigned) != 0:
+          plm_out.write(missing+ '\n\n')
+          cmx_out.write(missing+ '\n\n')
 
       if '15N' in spectrum.nuclei:
         unassigned = []
         for resi in backbone:
           if resi not in used: unassigned.append(int(resi))
-        outfile.write(sbackbone)
         if len(assigned) != 0:
-          ngreens = 'color smudge, backbone and resi ' + str(assigned[0])
+          cmx_greens = 'color #' + str(mn) + ':' + str(assigned[0])
+          ngreens = 'color smudge, %s and resi %s' %(spectrum.name, str(assigned[0]))
           for g in range(len(assigned))[:-1]:
             idx = assigned[g]
             idx2 = assigned[g+1]
             if idx2 != idx +1:
+              cmx_greens = cmx_greens + '-' + str(idx) + ',' + str(idx2)
               ngreens = ngreens + '-' + str(idx) + '+' + str(idx2)
           if assigned[-2] +1  == assigned[-1]:
               ngreens = ngreens + '-' + str(assigned[-1])
-          outfile.write(ngreens + '\n')
+              cmx_greens = cmx_greens  + '-' + str(assigned[-1])
+          plm_out.write(ngreens + '\n')
+          cmx_out.write(cmx_greens + ' green target c\n')
         if len(tentative) != 0:
-          ngolds = 'color gold, backbone and resi ' + str(tentative[0])
+          tassign = '##### Tentative Assigments %d: ' %(len(tentative))
+          ngolds = 'color gold, %s and resi %s' %(spectrum.name, str(tentative[0]))
+          cmx_golds = 'color #' + str(mn) + ':' + str(tentative[0])
           for t in range(len(tentative))[:-1]:
+            tassign = tassign + sdict[tentative[t]] + ' '
             idx = tentative[t]
             idx2 = tentative[t+1]
             if idx2 != idx +1:
               ngolds = ngolds + '-' + str(idx) + '+' + str(idx2)
+              cmx_golds = cmx_golds + '-' + str(idx) + ',' + str(idx2)
           if tentative[-2] +1  == tentative[-1]:
               ngolds = ngolds + '-' + str(tentative[-1])
-          outfile.write(ngolds+ '\n')
+              cmx_golds = cmx_golds + '-' + str(tentative[-1])
+              tassign = tassign + sdict[tentative[-1]]
+          plm_out.write(ngolds+ '\n')
+          cmx_out.write(cmx_golds + ' gold target c\n')
         if len(unassigned) != 0:
-          nreds = 'color red, backbone and resi ' + str(unassigned[0])
+          nreds = 'color red,  %s and resi %s' %(spectrum.name, str(unassigned[0]))
+          cmx_reds = 'color #' + str(mn) + ':' + str(unassigned[0])
           missing = '##### Unassigned NH %d: ' %(len(unassigned))
           for r in range(len(unassigned))[:-1]:
             missing = missing + sdict[unassigned[r]] + ' '
@@ -409,14 +416,24 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
             idx2 = unassigned[r+1]
             if idx2 != idx +1:
               nreds = nreds + '-' + str(idx) + '+' + str(idx2)
+              cmx_reds = cmx_reds + '-' + str(idx) + ',' + str(idx2)
           if unassigned[-2] +1  == unassigned[-1]:
             nreds = nreds + '-' + str(unassigned[-1])
+            cmx_reds = cmx_reds + '-' + str(unassigned[-1])
           missing = missing + sdict[unassigned[-1]]
-          outfile.write(nreds+ '\n')
-          outfile.write(missing+ '\n\n')
-
-    outfile.write("color gray70, %s and chain %s and resi %s-%s\ncolor gray70, resn PRO\n" %( pdb_name, s.chains, backbone[0], backbone[-1]))
-    outfile.close()
+          plm_out.write(nreds+ '\n')
+          cmx_out.write(cmx_reds + ' red target c\n')
+        if len(tentative) != 0:
+          plm_out.write(tassign+ '\n')
+          cmx_out.write(tassign+ '\n')
+        if len(unassigned) != 0:
+          plm_out.write(missing+ '\n\n')
+          cmx_out.write(missing+ '\n\n')
+    cmx_out.write('hide #1 target ac\n')
+    plm_out.write("color gray70, %s and chain %s and resi %s-%s\ncolor gray70, resn PRO\n" %( pdb_name, s.chains, backbone[0], backbone[-1]))
+    plm_out.write("hide everything, %s\n" %pdb_name)
+    cmx_out.close()
+    plm_out.close()
 
   def show_summary(self):
     s = self.get_settings()
@@ -507,7 +524,58 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
     self.summary_list.append('M    %3d       %3d     %3d      %3d      %3d     %3d' %(  sM, uM, aM, cM, isM, imM))
     self.summary_list.append('A    %3d       %3d     %3d      %3d      %3d     %3d' %(  sA, uA, aA, cA, isA, imA))
     self.summary_list.append('T    %3d       %3d     %3d      %3d      %3d     %3d' %(  sT, uT, aI, cT, isT, imT))
-
+  def show_summary2(self):
+    s = self.get_settings()
+    self.summary_list.clear()
+    self.stoppable_loop('shifts', 100)
+    sA,sC,sD,sE,sF,sG,sH,sI,sS,sK,sL,sM,sN,sP,sQ,sR,sS,sT,sV,sW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    uA,uC,uD,uE,uF,uG,uH,uI,uS,uK,uL,uM,uN,uP,uQ,uR,uS,uT,uV,uW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    aA,aC,aD,aE,aF,aG,aH,aI,aS,aK,aL,aM,aN,aP,aQ,aR,aS,aT,aV,aW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    cA,cC,cD,cE,cF,cG,cH,cI,cS,cK,cL,cM,cN,cP,cQ,cR,cS,cT,cV,cW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    isA,isC,isD,isE,isF,isG,isH,isI,isS,isK,isL,isM,isN,isP,isQ,isR,isS,isT,isV,isW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    imA,imC,imD,imE,imF,imG,imH,imI,imS,imK,imL,imM,imN,imP,imQ,imR,imS,imT,imV,imW = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    # print s.Labels
+    aTotal = 0
+    for assignment in s.Labels:
+      if assignment[0] == 'I':sI+=1
+      if assignment[0] == 'L':sL+=1
+      if assignment[0] == 'V':sV+=1
+      if assignment[0] == 'M':sM+=1
+      if assignment[0] == 'A':sA+=1
+      if assignment[0] == 'T':sT+=1
+    Correct, Incorrect,Used = [], [], []
+    for peak in s.ref_spectrum.peak_list():
+      if '?' not in peak.assignment:
+        restype = peak.resonances()[0].group.symbol
+        if restype == '-':restype = peak.assignment[0]
+        if peak.note.count(":") == 1:
+          if restype == 'I': uI += 1
+          if restype == 'L': uL += 1
+          if restype == 'V': uV += 1
+          if restype == 'M': uM += 1
+          if restype == 'A': uA += 1
+          if restype == 'T': uT += 1
+        if peak.note.count(":") >= 2:
+          aTotal = aTotal +1
+          if 'I'in restype: aI+=1
+          if 'L'in restype: aL+= 1
+          if 'V'in restype: aV+= 1
+          if 'M'in restype: aM+= 1
+          if 'A'in restype: aA+= 1
+          if 'T'in restype: aT+= 1
+    uTotal = uI+uL+uV+uM+uA+uT
+    cTotal = cI+cL+cV+cM+cA+cT
+    sTotal = sI+2*sL+2*sV+sM+sA+sT
+    total = uI+uL+uV+uM+uA+uT+aI+aL+aV+aM+aA+aT
+    self.summary_list.append(('Assigned: %3d (%2.1f%%)' %(total, 100*float(total)/sTotal)))
+    self.summary_list.append('              Assignment Opt   ')
+    self.summary_list.append('   Expected  Single  Multiple  ')
+    self.summary_list.append('I    %3d       %3d     %3d   ' %(  sI, uI, aI))
+    self.summary_list.append('L    %3d       %3d     %3d   ' %(2*sL, uL, aL))
+    self.summary_list.append('V    %3d       %3d     %3d   ' %(2*sV, uV, aV))
+    self.summary_list.append('M    %3d       %3d     %3d   ' %(  sM, uM, aM))
+    self.summary_list.append('A    %3d       %3d     %3d   ' %(  sA, uA, aA))
+    self.summary_list.append('T    %3d       %3d     %3d   ' %(  sT, uT, aI))
   # -----------------------------------------------------------------------------
   #
   def Check_Assignments_cb(self):
@@ -571,3 +639,4 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 def show_dialog(session):
   sputil.the_dialog(Assignment_Progress_dialog,session).show_window(1)
+
