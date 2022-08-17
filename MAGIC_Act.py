@@ -14,6 +14,7 @@ import shutil
 import tkFileDialog
 import string
 
+
 # ------------------------------------------------------------------------------
 #
 # Created by : Mary Clay PhD
@@ -21,7 +22,7 @@ import string
 # St Jude Children's Research Hospital 
 # Department of Structural Biology Memphis, TN 
 #
-# Last updates: August 27, 2021
+# Last updates: August 5, 2022
 #
 #
 # ------------------------------------------------------------------------------
@@ -30,6 +31,10 @@ AAA_dict = {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
  "GLU": "E", "GLN": "Q", "GLY": "G", "HIS": "H", "ILE": "I", "LEU": "L",
  "LYS": "K", "MET": "M", "PHE": "F", "PRO": "P", "SER": "S", "THR": "T",
  "TRP": "W", "TYR": "Y", "VAL": 'V' }
+A_dict = {'C': 'CYS', 'D': 'ASP', 'S': 'SER', 'Q': 'GLN', 'K': 'LYS',
+     'I': 'ILE', 'P': 'PRO', 'T': 'THR', 'F': 'PHE', 'N': 'ASN', 
+     'G': 'GLY', 'H': 'HIS', 'L': 'LEU', 'R': 'ARG', 'W': 'TRP', 
+     'A': 'ALA', 'V':'VAL', 'E': 'GLU', 'Y': 'TYR', 'M': 'MET'}
 MEA = {'I':['CD1','HD1'],'L':['CD','HD'],'V':['CG','HG'],'M':['CE','HE'], 'A':['CB','HB'], 'T':['CG2','HG2']}
 #### Me_dic = Me:[#peaks in 2D, Catom-Hatom]
 Me_dic = {"A":["CB-HB"], "I":["CD1-HD1"], "L":["CD1-HD1", "CD2-HD2"], "M":["CE-HE"], "T":["CG2-HG2"],"V":["CG1-HG1", "CG2-HG2"]}
@@ -212,6 +217,9 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		e = tkutil.entry_field(self.pdbframe, 'distance cutoff: ', '6', 5)
 		self.max_dist = e.variable
 		e.frame.pack(side=LEFT,fill=X, expand=1)
+		e = tkutil.entry_field(self.pdbframe, 'chain: ', 'A', 5)
+		self.chians = e.variable
+		e.frame.pack(side=LEFT,fill=X, expand=1)
 
 	# Type of Methyl Labeling 
 		explain = ('LV Labeling')
@@ -257,21 +265,22 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		br.frame.pack(side = 'top', anchor = 'w')
 
 		br2 = tkutil.button_row(self.top, ('Generate MAGIC Input', self.Generate_MAGIC_cb),
+											('Generate FLYA Input', self.Generate_FLYA_cb),
 											('Read Result', self.Read_MAGIC_results_cb),
 											('Close', self.close_cb),
 											('Stop', self.stop_cb))
 		br2.frame.pack(side = 'top', anchor = 'w')
 
 		self.settings = self.get_settings()
-		tkutil.Stoppable.__init__(self, progress_label, br2.buttons[3])
+		tkutil.Stoppable.__init__(self, progress_label, br2.buttons[4])
 
 	# ------------------------------------------------------------------------------
 	#
 
 	def get_settings(self):
 
-		Seq ,pdb_atoms, Labels =[],[], []
-		pairs = 0
+		Seq ,pdb_atoms, Labels, flya_atoms =[],[], [], []
+		Lpairs, Vpairs = 0, 0
 		
 		for (resi,resn) in self.sequence:
 			if resn in self.labeling.get():
@@ -280,8 +289,9 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 					for me in Me_dic[resn]:
 						Labels.append(resn + str(resi) + me)
 						pdb_atoms.append(resn + str(resi) +'-' + me.split('-')[0])
-						if resn == "V" or resn == "L":
-							pairs = pairs +0.5
+						flya_atoms.append(me.split('-')[0] + '.' + resn + str(resi))
+						if resn == "V": Vpairs = Vpairs +0.5
+						if resn == "L": Lpairs = Lpairs +0.5
 				if self.proS.state() == True:
 					Labels.append(resn + str(resi) + Me_dic[resn][0])
 					pdb_atoms.append(resn + str(resi) +'-' + Me_dic[resn][0].split('-')[0])
@@ -318,15 +328,19 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		settings.Labels = Labels
 		settings.Seq = Seq
 		settings.pdb_atoms = pdb_atoms
-		settings.possible_pairs = int(pairs)
+		settings.flya_atoms = flya_atoms
+		settings.possible_pairs = int(Vpairs + Lpairs)
+		settings.possible_Vpairs = int(Vpairs)
+		settings.possible_Lpairs = int(Lpairs)
 		return settings
 
 	# ---------------------------------------------------------------------------
 	#
-
 	def update_cb(self):
 		s = self.get_settings()
 		self.stoppable_call(self.show_summary)
+
+
 	# ---------------------------------------------------------------------------
 	#
 	def show_summary(self):
@@ -337,7 +351,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		uI, uL, uV, uM, uA, uT = 0, 0, 0, 0, 0, 0
 		aI, aL, aV, aM, aA, aT = 0, 0, 0, 0, 0, 0
 		cI, cL, cV, cM, cA, cT = 0, 0, 0, 0, 0, 0
-		# print s.Labels
 		for assignment in s.Labels:
 			if assignment[0] == 'I':sI+=1
 			if assignment[0] == 'L':sL+=1
@@ -345,12 +358,8 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			if assignment[0] == 'M':sM+=1
 			if assignment[0] == 'A':sA+=1
 			if assignment[0] == 'T':sT+=1
-		aTotal = 0
-		pairedV = 0
-		pairedL = 0
-		pairedLV = 0
-		Overlapped ,Used = [], []
-		Isolated = []
+		aTotal,pairedV,pairedL,pairedLV  = 0,0,0,0
+		Overlapped ,Used, Isolated = [], [], []
 		for peak in s.hmqc_spectrum.peak_list():
 			if peak.color == 'dark red':
 				Isolated.append(peak)
@@ -394,11 +403,10 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						Used.extend([peak,peak2])
 		Reciprocated, Diagonal, Orphan, Bad= [], [], [], []
 		for peak in s.noesy_spectrum.peak_list():
-			if peak.color == 'green': Reciprocated.append(peak)
+			if 'green' in peak.color: Reciprocated.append(peak)
 			if peak.color == 'cyan':Diagonal.append(peak)
 			if peak.color == 'gold':Orphan.append(peak)
 			if peak.color == 'red':Bad.append(peak)
-		print Overlapped
 
 		uTotal = uI+uL+uV+uM+uA+uT
 		cTotal = cI+cL+cV+cM+cA+cT
@@ -441,7 +449,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			self.summary_list.append('   %d of %d of local networks are unique' %(ULN, LN))
 			self.summary_list.append('   Minimum assignment %2.1f%%' %((float(ULN)/len(s.Labels))*100.0))
 			self.summary_list.append('   Maximum assignment %2.1f%%' %((float(LN)/len(s.Labels))*100.0))
-			self.summary_list.append('   Fount %d isolated methyls' %(len(Isolated2)))
+			self.summary_list.append('   Found %d isolated methyls' %(len(Isolated2)))
 			sx = range(0,len(Isolated2),4)[-1]
 			PDBiso = '   '
 			for x in range(0, len(Isolated2),4)[:-1]:
@@ -453,7 +461,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 	# ---------------------------------------------------------------------------
 	#
-	#
 	def Cacl_theo_NOE_networks(self):
 		s = self.get_settings()
 		PDB_entries ={}
@@ -462,13 +469,14 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		tseq = ''
 		if s.pdb_path:
 			for line in open(s.pdb_path).readlines():
-				if line[0:4] == "ATOM" or line[0:4] == 'HETA':
-					if line[17:20].strip() in AAA_dict.keys():
-						resid = AAA_dict[line[17:20].strip()] + line[22:26].strip() + "-" + line[12:16].strip()
-						if resid in s.pdb_atoms:
-							tseq = tseq + resid[0]
-							PDB_entries[resid] = [float(line[30:38]), float(line[38:46]), float(line[46:54])]
-							NOEatoms.append(resid)
+				if line[0:4] == "ATOM" or line[0:4] == 'HETA': 
+					if line[21] == self.chians.get():
+						if line[17:20].strip() in AAA_dict.keys():
+							resid = AAA_dict[line[17:20].strip()] + line[22:26].strip() + "-" + line[12:16].strip()
+							if resid in s.pdb_atoms:
+								tseq = tseq + resid[0]
+								PDB_entries[resid] = [float(line[30:38]), float(line[38:46]), float(line[46:54])]
+								NOEatoms.append(resid)
 		for atom1 in PDB_entries.keys():
 			temp = []
 			for atom2 in PDB_entries.keys():
@@ -542,48 +550,91 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		for acceptor in LNID.keys():
 			if LNID[acceptor] in fully_Unique: 
 				ULNcount = ULNcount +1 
-				print acceptor
 
 		total = len(s.Labels) - tseq.count('L')/2 - tseq.count('V')/2
-		print 'Number of NOEs in Cm-CmHm 3D %d' %NOEcount
-		print 'number of local networks %d' %len(Netowrks)
-		print 'number of isolated methyls %d' %len(Isolated)
-		print 'number of in Used local networks %d' %len(Used)
-		print 'number of All local networks %d' %len(allULN)
-		print 'number of unique local networks %d' %len(ULN)
-		print 'number of fully unique local networks %d' %ULNcount
-		print 'Minimum assignment %2.1f%%' %((float(ULNcount)/len(s.Labels))*100.0)
-		print 'Maximum assignment %2.1f%%' %((float(len(Netowrks))/len(s.Labels))*100.0)
-		print Isolated
 		return NOEcount, ULNcount , len(Netowrks), Isolated
 
 	# ------------------------------------------------------------------------------
 	#
-	#                                   Type_Peaks                                  
-	#
-	#   This section assigns amino acid type to each peak in the specified Methyl HMQC
-	#   and labeled methyls, storing the result in the peak.note.
-	#   Typing is based on probability of peaks is a given methyl PMe:
+	'''                                   Type_Peaks                                  
+	
+	   This section assigns amino acid type to each peak in the specified Methyl HMQC
+	   and labeled methyls, storing the result in the peak.note.
+	   Typing is based on probability of peaks is a given methyl PMe:
+	 
+	   PMe = m.exp(-((m.pow((Wc-muMEc),2)/(2*m.pow(sdMEc,2)))+(m.pow((Wh-muMEh),2)/(2*m.pow(sdMEh,2))))),5)
+	
+	       muMEc = average 13C chemical shift of a given methyl group 
+	       sdMEc = standard deviation of the 13C chemical shift of a given methyl group 
+	       myMEh = average 1H chemical shift of a given methyl group 
+	       sdMEh = standard deviation of the 1H chemical shift of a given methyl group
+	       Wc = observed 13C chemical shift 
+	       Wh = observed 1H chemical shift
+	
+	   MeCSdict is a dictionary storing these values with the format Me:[muMEc. sdMec, muMeh, sdMeh]
+	   If PMe/ total probability is greater than threshold specified in MeTypedict then the peaks is 
+	   assigned that methyl type
+	'''
+	# ------------------------------------------------------------------------------
 	# 
-	#   PMe = m.exp(-((m.pow((Wc-muMEc),2)/(2*m.pow(sdMEc,2)))+(m.pow((Wh-muMEh),2)/(2*m.pow(sdMEh,2))))),5)
-	#
-	#       muMEc = average 13C chemical shift of a given methyl group 
-	#       sdMEc = standard deviation of the 13C chemical shift of a given methyl group 
-	#       myMEh = average 1H chemical shift of a given methyl group 
-	#       sdMEh = standard deviation of the 1H chemical shift of a given methyl group
-	#       Wc = observed 13C chemical shift 
-	#       Wh = observed 1H chemical shift
-	#
-	#   MeCSdict is a dictionary storing these values with the format Me:[muMEc. sdMec, muMeh, sdMeh]
-	#   If PMe/ total probability is greater than threshold specified in MeTypedict then the peaks is 
-	#   assigned that methyl type 
+	def Assign_HMQC(self, peak, group, a1, a2):
+		peak.assign(0,group, a1)
+		peak.assign(1,group, a2)
+		peak.show_assignment_label()
+		return
+	# ------------------------------------------------------------------------------
+	# 
+	def get_Metype(self, peak, labeling):
+		total = 0
+		mtype = ''
+		TypeProb = {}
+		for me in labeling:
+			Pme = round(m.exp(-((m.pow((peak.frequency[0] -MeCSdict[me][0]),2)/(2*m.pow(MeCSdict[me][1],2)))+(m.pow((peak.frequency[1]-MeCSdict[me][2]),2)/(2*m.pow(MeCSdict[me][3],2))))),6)
+			total = total + Pme
+			TypeProb['P'+ me] = Pme
+		total = total + 1E-07
+		for me in labeling:
+			if (TypeProb['P'+ me] / total) >= MeTypedict[me]:
+				mtype = mtype + me
+		if len(mtype) == 0:
+			mtype = labeling
+		return mtype
 
+	# ------------------------------------------------------------------------------
+	# 
 	def Type_peaks(self):
 		s = self.get_settings()
-		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		HMQCpeaks = s.hmqc_spectrum.peak_list()
+		#### Assign potential methyl type for each peak in HMQC based on labeling 
+		if len(s.typelabeling) == 0:
+			if len(self.labeling.get()) == 0:
+				tkinter.messagebox.showinfo('Input Error', "No Labeling Specified \n Specify Labeled methyls and try again")
+				return
+			x = 0
+			comment = ''
+			for peak in HMQCpeaks:
+				x = x+1
+				if len(peak.note) == 0:
+					if peak.is_assigned == 1 and peak.assignment in s.Labels:
+						mtype = peak.assignment[0]
+					else:
+						mtype = self.get_Metype(peak,s.labeling)
+					peak.note = mtype
+				## If the peak has no assignment give it assingment with group.symbol = metype and group.number = list index, with atom1 = C and atom2 = H
+				if peak.is_assigned == 0:
+					group = peak.note.split()[0].lower() + str(x)
+					self.Assign_HMQC(peak, peak.note.split()[0].lower() + str(x), 'C','H')
+				## If the methyl type in the note does not match the group.symbol ubdate it 
+				if len(peak.note) >= 1 and peak.assignment not in s.Labels:
+					if peak.note.split()[0].lower() != peak.resonances()[0].group.symbol:
+						self.Assign_HMQC(peak, peak.note.split()[0].lower() + str(x), 'C','H')
+						peak.label.color = 'white'
+				if not re.search('[L,V]', peak.note) and peak.assignment not in s.Labels:
+					peak.label.color = 'white'
+
 		if len(s.typelabeling) != 0:
 			if s.Typing_HMQC.name == s.hmqc_spectrum.name:
-				tkMessageBox.showinfo('Input Error', "Please select a type labeled Me HMQC")
+				tkinter.messagebox.showinfo('Input Error', "Please select a type labeled Me HMQC")
 				return
 			if s.Typing_HMQC.name != s.hmqc_spectrum.name:
 				retyped = []
@@ -597,19 +648,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 					if peak.is_assigned == 1 and peak.assignment in s.Labels:
 						mtype = peak.assignment[0]
 					if len(peak.note) == 0:
-						total = 0
-						mtype = ''
-						TypeProb = {}
-						for me in s.typelabeling:
-							Pme = round(m.exp(-((m.pow((peak.frequency[0] -MeCSdict[me][0]),2)/(2*m.pow(MeCSdict[me][1],2)))+(m.pow((peak.frequency[1]-MeCSdict[me][2]),2)/(2*m.pow(MeCSdict[me][3],2))))),6)
-							total = total + Pme
-							TypeProb['P'+ me] = Pme
-						total = total + 1E-07
-						for me in s.typelabeling:
-							if (TypeProb['P'+ me] / total) >= MeTypedict[me]:
-								mtype = mtype + me
-						if len(mtype) == 0:
-							mtype = s.typelabeling
+						mtype = self.get_Metype(peak,s.typelabeling)
 						peak.note = mtype
 					Matches = [hmqc for hmqc in HMQCpeaks if (abs(hmqc.frequency[0] -peak.frequency[0]) < s.Ctol) and (abs(hmqc.frequency[1] -peak.frequency[1]) < s.Htol) and hmqc not in retyped]
 					diff = []
@@ -618,75 +657,25 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 							diff.append(abs(peak.frequency[0] - hmqc.frequency[0]) + abs(peak.frequency[1] - hmqc.frequency[1]))
 						peak2 = Matches[diff.index(min(diff))]
 						if peak2.assignment in s.Labels:
-							peak.assign(0, peak2.resonances()[0].group.name, peak2.resonances()[0].atom.name)
-							peak.assign(1, peak2.resonances()[1].group.name, peak2.resonances()[1].atom.name)
-							peak.show_assignment_label()
+							self.Assign_HMQC(peak, peak2.resonances()[0].group.name, peak2.resonances()[0].atom.name, peak2.resonances()[1].atom.name)
 						if peak2.assignment not in s.Labels:
-							if peak2.resonances()[0].group.number:
-								peak2.assign(0, mtype.lower() + str(peak2.resonances()[0].group.number), peak2.resonances()[0].atom.name)
-								peak2.assign(1, mtype.lower() + str(peak2.resonances()[1].group.number), peak2.resonances()[1].atom.name)
-								peak2.show_assignment_label()
-							if not peak2.resonances()[0].group.number:
-								idx = HMQCpeaks.index(peak2) + 1
-								peak2.assign(0, mtype.lower() + str(idx), 'C')
-								peak2.assign(1, mtype.lower() + str(idx), 'H')
-								peak2.show_assignment_label()
-							peak.assign(0, mtype.lower() + str(peak2.resonances()[0].group.number), peak2.resonances()[0].atom.name)
-							peak.assign(1, mtype.lower() + str(peak2.resonances()[1].group.number), peak2.resonances()[1].atom.name)
+							idx = peak2.resonances()[0].group.number
+							self.Assign_HMQC(peak, mtype.lower() + str(idx), peak2.resonances()[0].atom.name, peak2.resonances()[1].atom.name)
+							self.Assign_HMQC(peak2, mtype.lower() + str(idx), peak2.resonances()[0].atom.name, peak2.resonances()[1].atom.name)
+							if not re.search('[L,V]', peak2.note):peak2.label.color = 'white'
 						retyped.append(peak2)
 						if peak2.note.split(): peak2type = peak2.note.split()[0]
 						else: peak2type = peak2.note
-						peak2.note = peak2.note.replace(peak2type, mtype)
+						peak2.note = peak2.note.replace(peak2type, mtype).replace(peak2type.lower(), mtype.lower())
+
 				for peak3 in s.hmqc_spectrum.peak_list():
 					if peak3 not in retyped:
 						group = peak3.resonances()[0].group.name
 						for me in s.typelabeling:
-							peak3.note = peak3.note.replace(me,'')
+							peak3.note = peak3.note.replace(me,'').replace(me.lower(),'')
 							group = group.replace(me.lower(),'')
-						peak3.assign(0,group, peak3.resonances()[0].atom.name)
-						peak3.assign(1,group, peak3.resonances()[1].atom.name)
-						peak3.show_assignment_label()
-
-		#### Assign potential methyl type for each peak in HMQC based on labeling 
-		if len(s.typelabeling) == 0:
-			if len(self.labeling.get()) == 0:
-				tkMessageBox.showinfo('Input Error', "No Labeling Specified \n Specify Labeled methyls and try again")
-				return
-			x = 0
-			for peak in HMQCpeaks:
-				x = x+1
-				if len(peak.note) == 0:
-					total = 0
-					mtype = ''
-					TypeProb = {}
-					if peak.is_assigned == 1 and peak.assignment in s.Labels:
-						mtype = peak.assignment[0]
-						if peak.note.split(): peak2type = peak.note.split()[0]
-						else: peaktype = peak.note
-						peak.note=peak.note.replace(peaktype, mtype)
-					else:
-						for me in s.labeling:
-							Pme = round(m.exp(-((m.pow((peak.frequency[0] -MeCSdict[me][0]),2)/(2*m.pow(MeCSdict[me][1],2)))+(m.pow((peak.frequency[1]-MeCSdict[me][2]),2)/(2*m.pow(MeCSdict[me][3],2))))),6)
-							total = total + Pme
-							TypeProb['P'+ me] = Pme
-						total = total + 1E-07
-						for me in s.labeling:
-							if (TypeProb['P'+ me] / total) >= MeTypedict[me]:
-								mtype = mtype + me
-						if len(mtype) == 0:
-							mtype = s.labeling
-					peak.note = mtype
-				if peak.is_assigned == 0:
-					group = peak.note.split()[0].lower() + str(x)
-					peak.assign(0,group,'C')
-					peak.assign(1,group,'H')
-					peak.show_assignment_label()
-				if len(peak.note) >= 1 and peak.assignment not in s.Labels:
-					metype = peak.note.split()[0].lower()
-					if metype != peak.resonances()[0].group.symbol:
-						group = peak.resonances()[0].group.name.replace(peak.resonances()[0].group.symbol, metype)
-						peak.assign(0,group, peak.resonances()[0].atom.name)
-						peak.assign(1,group, peak.resonances()[1].atom.name)
+						self.Assign_HMQC(peak3, group, peak3.resonances()[0].atom.name,peak3.resonances()[1].atom.name)
+						if not re.search('[L,V]', peak3.note) and peak3.assignment not in s.Labels:peak3.label.color = 'white'
 
 		self.stoppable_call(self.show_summary)
 	# ------------------------------------------------------------------------------
@@ -701,7 +690,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 	#
 	#                               Geminal_Pairs_cb                                
 	#
-	#   This section used an HMBC-HMQC 3D and the types methyl HMQC 2D to find geminal 
+	#   This section uses the HMBC-HMQC 3D and the typed methyl HMQC 2D to find geminal 
 	#   pairs
 	#
 	#   Only HMQC peaks with L or V in their type are considered 
@@ -728,18 +717,29 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		if s.hmqc_spectrum.dimension != 2:
 			tkMessageBox.showinfo('Input Error', "Please Select 2D Methyl Spectrum")
 			return
+		if s.HMBC_spec.dimension != 3:
+			tkMessageBox.showinfo('Input Error', "Please Select 3D NOESY Spectrum")
+			return
 		self.Type_peaks()	# run type peaks so that all the peaks will have a type and temporary assignment
-		HMQCpeaks = s.hmqc_spectrum.peak_list()
+		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		LVpeaks = []
 		for me in range(len(HMQCpeaks)):
 			if 'L' in HMQCpeaks[me].note or 'V' in HMQCpeaks[me].note :
 				if "C" in HMQCpeaks[me].note:
 					HMQCpeaks[me].note = HMQCpeaks[me].note.split()[0]
 				LVpeaks.append(me)
-		Used = []
-		Paired = []
+		Used, Paired, idxlist, Diagonal = [], [], [],[]
 		self.LVcount = 0
 		HMBCpeaks = s.HMBC_spec.peak_list()
+		for peak in HMBCpeaks:
+			if (abs(peak.frequency[0] - peak.frequency[1]) < s.Ctol/2.0):
+				peak.note = 'Diagonal'
+				peak.color = 'cyan'
+			if (abs(peak.frequency[0] - peak.frequency[1]) < 0.004):
+				peak.note = 'MAT Diagonal peak'
+				peak.color = 'red'
+				Used.append(HMBCpeaks.index(peak))
+				Diagonal.append(peak)
 		self.count = 0
 		for x in LVpeaks:
 			if x not in Paired: 
@@ -759,7 +759,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						message = ('Checking possible combination %d \nFound %d of possible geminal pairs %d' % (self.count, self.LVcount, s.possible_pairs))
 						self.progress_report(message)
 						if x not in Paired and y != x:
-							HMBC_D_short = [peak2 for peak2 in range(len(HMBCpeaks)) if (abs(HMBCpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and (abs(HMBCpeaks[peak2].frequency[1] - me2.frequency[0]) < s.Ctol) and (abs(HMBCpeaks[peak2].frequency[2] - me2.frequency[1]) < s.Htol) and peak2 not in Used]
+							HMBC_D_short = [peak2 for peak2 in range(len(HMBCpeaks)) if (abs(HMBCpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and (abs(HMBCpeaks[peak2].frequency[1] - me2.frequency[0]) < s.Ctol) and (abs(HMBCpeaks[peak2].frequency[2] - me2.frequency[1]) < s.Htol) and peak2 not in Used and peak2 != HMBC_A]
 							if len(HMBC_D_short) >= 1:
 								for idy in HMBC_D_short:
 									d = abs(HMBCpeaks[idy].frequency[0] - me1.frequency[0]) + abs(HMBCpeaks[idy].frequency[1] - me2.frequency[0])
@@ -773,22 +773,49 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						Paired.append(Me2list_2[diff2.index(min(diff2))])
 						Used.append(HMBC_A)
 						Used.append(HMBC_D)
-						self.LVcount = self.LVcount + 1 
-						self.add_note_tempassignment(HMBCpeaks[HMBC_A], HMBCpeaks[HMBC_D], me1, me2, self.LVcount)
+						self.LVcount = self.LVcount + 1
+						index = HMQCpeaks.index(me1) + 1
+						if index not in idxlist:
+							idxlist.append(index)
+						elif index in idxlist:
+							index = HMQCpeaks.index(me2) + 1
+							if index not in idxlist:
+								idxlist.append(index)
+						self.add_note_tempassignment(HMBCpeaks[HMBC_A], HMBCpeaks[HMBC_D], me1, me2, index)
 						message = ('Checking possible combination %d \nFound %d of possible geminal pairs %d' % (self.count, self.LVcount, s.possible_pairs))
 						self.progress_report(message)
 
 		## Clean up LV assignment, only LV peaks which are paired should have C1-H1/C2-H2 as atom names 
 		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		Lcount, Vcount = 0,0
+		for x in LVpeaks:
+			if x not in Paired: 
+				peak =  HMQCpeaks[x]
+				for peak2 in Diagonal:
+					if (abs(peak2.frequency[1] - peak.frequency[0]) < s.Ctol/2.0) and (abs(peak2.frequency[2] - peak.frequency[1]) < s.Htol/2.0):
+						peak.note = peak.note.replace('V','').replace('L','')
+						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(HMQCpeaks.index(peak) + 1),'C','H')
+			if x in Paired:
+				metype = HMQCpeaks[x].note.split()[0]
+				if metype == 'V': Vcount+=0.5
+				if metype == 'L': Lcount+=0.5
+				if metype == 'LV':
+					Vcount+=0.5
+					Lcount+=0.5
+
 		x = 0
 		for peak in HMQCpeaks:
 			x= x+1 
-			if 'L' in peak.note or 'V' in peak.note:
+			if peak.assignment not in s.Labels:
 				if "C" not in peak.note:
-					if peak.assignment not in s.Labels:
-						group = peak.note.split()[0].lower() + str(x)
-						peak.assign(0,group,'C')
-						peak.assign(1,group,'H')
+					if Lcount >= s.possible_Lpairs and Vcount >= s.possible_Vpairs:
+						peak.note = peak.note.replace('V','').replace('L','')
+						if not peak.note.split(): peak.note = 'AT'
+						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(x),'C','H')
+						peak.show_assignment_label()
+					if 'L' in peak.note or 'V' in peak.note:
+						peak.label.color = 'purple'
+						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(x),'C','H')
 						peak.show_assignment_label()
 
 		self.stoppable_call(self.show_summary)
@@ -796,32 +823,31 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 	# ------------------------------------------------------------------------------
 	# 
 
-	def add_note_tempassignment(self, hmbc1, hmbc2, me1, me2, count):
+	def add_note_tempassignment(self, hmbc1, hmbc2, me1, me2, index):
 		MEA2 = {'L':['CD','HD'],'V':['CG','HG'],'LV':['C','H']}
 		s = self.get_settings()
 		group1 = me1.resonances()[0].group.name
 		group2 = me2.resonances()[0].group.name
+		## Option 1 either me1 or me2 has a residue specific assignment
 		if me1.assignment in s.Labels or me2.assignment in s.Labels:
 			if group1 == group2: # if me1 or me2 have the same sequential assignment, then set the methyl type to the assigned methyl type
 				group = group1
-				a1C =  me1.resonances()[0].atom.name
-				a1H =  me1.resonances()[1].atom.name
-				a2C =  me2.resonances()[0].atom.name
-				a2H =  me2.resonances()[1].atom.name
+				self.Assign_HMBC(hmbc1,group, me2.resonances()[0].atom.name, me1.resonances()[0].atom.name, me1.resonances()[1].atom.name)
+				self.Assign_HMBC(hmbc2,group, me1.resonances()[0].atom.name, me2.resonances()[0].atom.name, me2.resonances()[1].atom.name)
 				me1.note = me1.resonances()[0].group.symbol
 				me2.note = me1.resonances()[0].group.symbol
 				metype = group1[0]
-			if group1 != group2:
+			if group1 != group2: # if me1 or me2 do not have a residue specific assignment or different residue specific assignments
 				if me1.resonances()[0].group.symbol.upper() != me2.resonances()[0].group.symbol.upper():
 					metype = 'LV'
-					group = 'LV' + str(count)
+					group = 'LV' + str(index)
 				if me1.resonances()[0].group.symbol.upper() == me2.resonances()[0].group.symbol.upper():
 					metype = group1[0]
-					group =metype.lower()+str(count)
-				a1C = MEA2[metype][0]+'1'
-				a1H = MEA2[metype][1]+'1'
-				a2C = MEA2[metype][0]+'2'
-				a2H = MEA2[metype][1]+'2'
+					group =metype.lower()+str(index)
+				self.Assign_HMBC(hmbc1,group, 'C2', 'C1', 'H1')
+				self.Assign_HMBC(hmbc2,group, 'C1', 'C2', 'H2')
+				self.Assign_HMQC(me1, group, 'C1','H1')
+				self.Assign_HMQC(me2, group, 'C2','H2')
 				if me1.assignment in s.Labels:
 					me1.note = metype + ':' + me1.assignment
 				if me1.assignment not in s.Labels:
@@ -833,97 +859,292 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		if me1.assignment not in s.Labels and me2.assignment not in s.Labels:
 			me1_type = me1.note.replace('T','').replace('A','').split(' ')[0]
 			me2_type = me2.note.replace('T','').replace('A','').split(' ')[0]
-			if len(me1_type) < len(me2_type):
+			if len(me1_type) == 2 or len(me2_type) ==2:
+				if me1.frequency[0] > 25.0 or me2.frequency[0] > 25.0:
+					metype = 'L'
+				elif me1.frequency[0] < 23.0 and me2.frequency[0] < 23.0:
+					metype = 'V'
+				else: metype = 'LV'
+			elif me1_type == me2_type:
 				metype = me1_type
-			if len(me2_type) < len(me1_type):
-				metype = me2_type
-			if len(me1_type) == len(me2_type) and me1_type == me2_type:
-				metype = me1_type
-			if len(me1_type) == len(me2_type) and me1_type != me2_type:
+			elif me1_type != me2_type:
 				metype = 'LV'
-			me1.note = metype
-			me2.note = metype
-			group =metype.lower()+str(count)
-			a1C = 'C1'
-			a1H = 'H1'
-			a2C = 'C2'
-			a2H = 'H2'
+			group =metype.lower()+str(index)
+			self.Assign_HMBC(hmbc1,group, 'C2', 'C1', 'H1')
+			self.Assign_HMBC(hmbc2,group, 'C1', 'C2', 'H2')
+			self.Assign_HMQC(me1, group, 'C1','H1')
+			self.Assign_HMQC(me2, group, 'C2','H2')
+		me1text,me2text = '',''
+		if re.search(':',me1.note): me1text = ' :' + me1.note.split(':')[-1]
+		if re.search(':',me2.note): me2text = ' :' + me2.note.split(':')[-1]
+		me1.note = metype + ' ;'+ me2.assignment + me1text
+		if me1.assignment not in s.Labels: me1.label.color = 'white'
+		me2.note = metype + ' ;'+ me1.assignment + me2text
+		if me2.assignment not in s.Labels: me2.label.color = 'white'
+		return
 
-		hmbc1.assign(0,group, a2C)
-		hmbc1.assign(1,group, a1C)
-		hmbc1.assign(2,group, a1H)
-		hmbc1.show_assignment_label()
-		hmbc2.assign(0,group, a1C)
-		hmbc2.assign(1,group, a2C)
-		hmbc2.assign(2,group, a2H)
-		hmbc2.show_assignment_label()
-		me1.assign(0,group, a1C)
-		me1.assign(1,group, a1H)
-		me1.show_assignment_label()
-		me2.assign(0,group, a2C)
-		me2.assign(1,group, a2H)
-		me2.show_assignment_label()
-
-		me1.note = me1.note + ' ;'+ me2.assignment
-		me2.note = me2.note + ' ;'+ me1.assignment
+	# ------------------------------------------------------------------------------
+	# 
+	def Assign_HMBC(self, peak, group, a1, a2, a3):
+		peak.assign(0,group, a1)
+		peak.assign(1,group, a2)
+		peak.assign(2,group, a3)
+		peak.show_assignment_label()
 		return
 	# ------------------------------------------------------------------------------
 	# 
-	
+	def Assign_3D_NOESY(self, peak, group1, group2, a1, a2, a3):
+		peak.assign(0,group1, a1)
+		peak.assign(1,group2, a2)
+		peak.assign(2,group2, a3)
+		peak.show_assignment_label()
+		return
+	# ------------------------------------------------------------------------------
+	# 
+	# Find all possible donors for a given methyl in HMQC with NOESY w2 = me1C, and NOEYS w3 = me1H
+	#
+	def Find_3D_Donors(self, PeaksList, me1C, me1H, tList):
+
+		s = self.get_settings()
+		Donors = []
+		for peak in range(len(PeaksList)):
+			if (abs(PeaksList[peak].frequency[1] - me1C) < s.Ctol) and (abs(PeaksList[peak].frequency[2] - me1H) < s.Htol) and peak not in tList:
+				Donors.append(peak)
+		return Donors
+	# ------------------------------------------------------------------------------
+	# 
+	# Find all possible reciprocated acceptor cross peak(s) serving as donor in original query strip. NOESY w1 = me1C, w2 = me2C, and NOEYS w3 = me2H
+	#
+	def Find_3D_Acceptor(self, PeaksList,me1C, me2C, me2H, tList):
+		s = self.get_settings()
+		Acceptors = []
+		for peak in range(len(PeaksList)):
+			if (abs(PeaksList[peak].frequency[0] - me1C) < s.Ctol) and (abs(PeaksList[peak].frequency[1] - me2C) < s.Ctol) and (abs(PeaksList[peak].frequency[2] - me2H) < s.Htol) and peak not in tList:
+				Acceptors.append(peak)
+		return Acceptors
+
+	# ------------------------------------------------------------------------------
+	# 
+	#                               Check_NOESY_cb                                
+	#
+	#   This section uses the Cm-CmHm 3D NOESY and the types methyl HMQC 2D to: 
+	#   	1) If dimethyl labeled sample check for symmetry between geminal pairs
+	#		2) Check for reciprocity of donor acceptor pairs
+	#
+	#   1) Symmetry between geminal pairs
+	#		Only paired L/V peaks in the 2D HMQC are considered, the symmetry of the 
+	#		two NOESY strips is determined by the ratio of the maximum number of peaks observed
+	#		in both stips max(len(Me1Donors), len(Me2Doonrs)) and the weighted sum of the peaks 
+	#		observed in each individual strip (MeXscore). Peaks in both NOESY strips  that satisfy
+	#		abs(Me1.NOESY.w1 - Me2.NOESY.w1) < Ctol, are considered matched and assigned a value of 1.
+	#		The impact on unmatched peaks (p) is determined by p = meXmin/peak.data_height, where meXmin
+	#		is the minimum data height observed in meX NOESY strip.
+	#		If MeXscore is > 0.85 the geminal pairing is correct and the HMQC peak label is colored green. 
+	#		If MeXscore is <0.85 but > 0.6 the geminal pairing is most likely symmetric but require further
+	#		curation and the HMQC peak label color is set to gold. 
+	#		If MeXscor is < 0.6 the strips are not symmetric and the geminal pairing may need reevaluation, the 
+	#		HMQC peak label color is set to magenta. 
+	#	2) Reciprocity of donor acceptor pairs 
+	#		
+
+	# ------------------------------------------------------------------------------
+	# 
+	def color_geminal(self, peak, score):
+
+		if score >= 0.85: 
+			peak.label.color = 'green'
+			peak.note = peak.note.split(':')[0] + ' : %0.2f' %score
+		elif score < 0.85 and score >= 0.6: 
+			peak.label.color = 'gold'
+			peak.note = peak.note.split(':')[0] + ' : %0.2f' %score
+		elif score < 0.60:
+			peak.label.color = 'magenta'
+			peak.note = peak.note.split(':')[0] + ' : %0.2f' %score
+		return
+
+	# ------------------------------------------------------------------------------
+	# 
 	def NOESY_cb(self):
 		s = self.get_settings()
 		self.count = 0
+		if s.noesy_spectrum.dimension != 3:
+			tkMessageBox.showinfo('Input Error', "Please Select 3D NOESY Spectrum")
+			return
 		NOESYpeaks = s.noesy_spectrum.peak_list()
 		Used = []
+		for x in range(len(NOESYpeaks)):
+			peak = NOESYpeaks[x]
+			if (abs(peak.frequency[0] - peak.frequency[1]) < 0.005):
+				peak.note = 'Diagonal'
+				peak.color = 'cyan'
+				Used.append(x)
+		Pairs, Pairs2, label2idx = {},{}, {}
 		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		## Add Geminal Pair Cross Peaks first 
 		if s.dimethyl == True:
-			LVpeaks = []
+			LVpeaks, Overlapped,checked, paired = [], [], [], []
 			for me in HMQCpeaks:
 				if 'L' in me.note or 'V' in me.note:
 					if 'C' in me.note:
 						LVpeaks.append(me)
-			for x in range(0,len(LVpeaks),2):
+			paired = []
+			## Make a dictionary to relate the geminal pairs
+			for x in range(0,len(LVpeaks)-1,1):
+				peakOverlap = []
+				label2idx[LVpeaks[x].assignment] = x
+				for y in range(1,len(LVpeaks),1):
+					label2idx[LVpeaks[y].assignment] = y
+					if x !=y:
+						if x not in paired and y not in paired: 
+							if LVpeaks[x].resonances()[0].group.name == LVpeaks[y].resonances()[0].group.name:
+								Pairs[x] = y
+								Pairs2[x] = y
+								Pairs2[y] = x
+								paired.extend([x,y])
+						if ((abs(LVpeaks[x].frequency[0] - LVpeaks[y].frequency[0]) < s.Ctol) and (abs(LVpeaks[x].frequency[1] - LVpeaks[y].frequency[1]) < s.Htol)):
+							if LVpeaks[x].assignment not in peakOverlap and LVpeaks[x].assignment not in checked: 
+								peakOverlap.append(LVpeaks[x].assignment)
+								checked.append(LVpeaks[x].assignment)
+							if LVpeaks[y].assignment not in checked: 
+								peakOverlap.append(LVpeaks[y].assignment)
+								checked.append(LVpeaks[y].assignment)
+				if len(peakOverlap) > 0:
+					Overlapped.append(peakOverlap)
+			### Check the overlapped peaks.
+			for olpeaks in Overlapped:
+				olDonors, olMatched, resolved = [], [], []
+				for peak in olpeaks:
+					me2 = LVpeaks[label2idx[peak]] ## overlapped peak 
+					for peak in self.Find_3D_Donors(NOESYpeaks,me2.frequency[0],me2.frequency[1],[]):
+						if peak not in olDonors:
+							olDonors.append(peak)
+				# print(olDonors)
+				olmin = min([NOESYpeaks[peak].data_height for peak in olDonors])
+				multimatch = 'matches '
+				for peak in olpeaks:
+					me1Matched, me2Matched, me1score = [],[],[]
+					me1 = LVpeaks[Pairs2[label2idx[peak]]] ## resolved peak 
+					me2 = LVpeaks[label2idx[peak]] ## overlapped peak 
+					me1Donors = self.Find_3D_Donors(NOESYpeaks,me1.frequency[0],me1.frequency[1],[])
+					if len(me1Donors) == 0 or len(olDonors) == 0:
+						me1.label.color = 'red'
+						me2.label.color = 'red'
+					if len(me1Donors) >=1 and len(olDonors) >=1:
+						me1min = min([NOESYpeaks[peak].data_height for peak in me1Donors])
+						for peak in me1Donors: 
+							if (abs(NOESYpeaks[peak].frequency[0] - me2.frequency[0]) < s.Ctol) and peak not in me1Matched: ## Find geminal cross peak in me1 trajectory 
+								me1Matched.append(peak)
+								me1score.append(1.1)
+								NOESYpeaks[peak].color = 'dark green'
+								Used.append(peak)
+								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
+							for peak2 in olDonors:
+								if (abs(NOESYpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and peak2 not in me2Matched: ## Find geminal cross peak in me2 trajectory
+									NOESYpeaks[peak2].color = 'dark green'
+									me2Matched.append(peak2)
+									olMatched.append(peak2)
+									Used.append(peak2)
+									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+								if peak not in me1Matched:
+									if peak2 not in me2Matched: 
+										if (abs(NOESYpeaks[peak].frequency[0] - NOESYpeaks[peak2].frequency[0]) < s.Ctol):  ## Find shared cross peaks in me1 and me2 trajectories 
+											me1score.append(1.1)
+											me1Matched.append(peak)
+											me2Matched.append(peak2)
+											olMatched.append(peak2)
+						me1Unmatched = [peak for peak in me1Donors if peak not in me1Matched]
+						for peak in me1Unmatched:
+							me1score.append(me1min/NOESYpeaks[peak].data_height)
+						resolved.append(me1score)
+				olUnmatched = [peak for peak in olDonors if peak not in olMatched]
+				olpenalty = sum([olmin/NOESYpeaks[peak].data_height for peak in olUnmatched])
+				# print(olpenalty)
+				for peak, score in zip(olpeaks,resolved):
+					me1 = LVpeaks[Pairs2[label2idx[peak]]] ## resolved peak 
+					me2 = LVpeaks[label2idx[peak]] ## overlapped peak
+					nDonors = len(score)
+					me1score = (sum(score) - score.count(1.1)*0.1)/nDonors
+					me2score = (score.count(1.1) + olpenalty)/nDonors
+					if me2score > 1.0: me2score = 1.00
+					self.color_geminal(me1, me1score)
+					self.color_geminal(me2, me2score)
+					# print('checking symmetry of %s and %s noesy strips ' %(me1.assignment, me2.assignment))
+					# print('%s Matched %d of %d possible matches with score of %0.2f' %(me1.assignment, score.count(1.1), len(me1Donors),me1score))
+					# print('%s Matched %d of %d possible matches wiht score of %0.2f' %(me2.assignment, score.count(1.1), len(olDonors), me2score))
+					# print()
+			Overlapped2 = [peak for subset in Overlapped for peak in subset]
+			i = 0
+			for x in Pairs.keys():
 				me1 = LVpeaks[x]
-				me2 = LVpeaks[x+1]
-				Donors = [peak for peak in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak].frequency[0] - me2.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[1] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[2] - me1.frequency[1]) < s.Htol)]
-				Acceptors = [peak for peak in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak].frequency[0] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[1] - me2.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[2] - me2.frequency[1]) < s.Htol)]
-				if len(Donors) >= 1:
-					diff = []
-					for donor in Donors:
-						diff.append(abs(NOESYpeaks[donor].frequency[0] - me1.frequency[0])+ abs(NOESYpeaks[donor].frequency[1] - me2.frequency[0])+ abs(NOESYpeaks[donor].frequency[2] - me2.frequency[1]))
-					Donor = Donors[diff.index(min(diff))]
-				if len(Acceptors) >= 1:
-					diff = []
-					for acceptor in Acceptors:
-						diff.append(abs(NOESYpeaks[acceptor].frequency[0] - me2.frequency[0])+ abs(NOESYpeaks[acceptor].frequency[1] - me1.frequency[0])+ abs(NOESYpeaks[acceptor].frequency[2] - me1.frequency[1]))
-					Acceptor = Acceptors[diff.index(min(diff))]
-					self.count = self.count + 2
-					message = ('Checking possible combination %d in NOESY' % (self.count))
-					self.progress_report(message)
-				Used.append(Acceptor)
-				Used.append(Donor)
-				NOESYpeaks[Donor].assign(0, me2.resonances()[0].group.name, me2.resonances()[0].atom.name)
-				NOESYpeaks[Donor].assign(1, me1.resonances()[0].group.name, me1.resonances()[0].atom.name)
-				NOESYpeaks[Donor].assign(2, me1.resonances()[1].group.name, me1.resonances()[1].atom.name)
-				NOESYpeaks[Donor].show_assignment_label()
-				NOESYpeaks[Acceptor].assign(0, me1.resonances()[0].group.name, me1.resonances()[0].atom.name)
-				NOESYpeaks[Acceptor].assign(1, me2.resonances()[0].group.name, me2.resonances()[0].atom.name)
-				NOESYpeaks[Acceptor].assign(2, me2.resonances()[1].group.name, me2.resonances()[1].atom.name)
-				NOESYpeaks[Acceptor].show_assignment_label()
-				NOESYpeaks[Donor].color = 'green'
-				NOESYpeaks[Acceptor].color = 'green'
+				me2 = LVpeaks[Pairs[x]]
+				if me1.assignment not in Overlapped2 and me2.assignment not in Overlapped2:
+					i= i+1
+					#print('checking LV pair %d of %d ' %(i, len(LVpeaks)/2))
+					#print('checking symmetry of %s and %s noesy strips ' %(me1.assignment, me2.assignment))
+					me1Donors = self.Find_3D_Donors(NOESYpeaks,me1.frequency[0],me1.frequency[1],[])
+					me2Donors = self.Find_3D_Donors(NOESYpeaks,me2.frequency[0],me2.frequency[1],[])
+					me1Matched, me2Matched = [],[]
+					if len(me1Donors) == 0 or len(me2Donors) == 0:
+						me1.label.color = 'red'
+						me2.label.color = 'red'
+					if len(me1Donors) >=1 and len(me2Donors) >=1:
+						me1min = min([NOESYpeaks[peak].data_height for peak in me1Donors])
+						me2min = min([NOESYpeaks[peak].data_height for peak in me2Donors])
+						for peak in me1Donors: 
+							if (abs(NOESYpeaks[peak].frequency[0] - me2.frequency[0]) < s.Ctol) and peak not in me1Matched: ## Find geminal cross peak in me1 trajectory 
+								me1Matched.append(peak)
+								NOESYpeaks[peak].color = 'dark green'
+								Used.append(peak)
+								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
+							for peak2 in me2Donors:
+								if (abs(NOESYpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and peak2 not in me2Matched:  ## Find geminal cross peak in me2 trajectory
+									me2Matched.append(peak2)
+									NOESYpeaks[peak2].color = 'dark green'
+									Used.append(peak2)
+									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+								if peak not in me1Matched:
+									if peak2 not in me2Matched: 
+										if (abs(NOESYpeaks[peak].frequency[0] - NOESYpeaks[peak2].frequency[0]) < s.Ctol):  ## Find shared cross peaks in me1 and me2 trajectories 
+											me1Matched.append(peak)
+											me2Matched.append(peak2)
+						me1Unmatched = [peak for peak in me1Donors if peak not in me1Matched]
+						me2Unmatched = [peak for peak in me2Donors if peak not in me2Matched]
+						me1score = len(me1Matched)
+						me2score = len(me2Matched)
+						nDonors = max([len(me1Donors), len(me2Donors)])
+						for peak in me1Unmatched:
+							p = me1min/NOESYpeaks[peak].data_height
+							#print('penalty = %3.2f for peak with SNR of %4.0f' %(p, NOESYpeaks[peak].data_height/s.noesy_spectrum.noise))
+							me1score = me1score + p
+						for peak in me2Unmatched:
+							p = me2min/NOESYpeaks[peak].data_height
+							#print('penalty = %3.2f for peak with SNR of %4.0f' %(p, NOESYpeaks[peak].data_height/s.noesy_spectrum.noise))
+							me2score = me2score + p
+						Me1score = me1score/float(nDonors)
+						Me2score = me2score/float(nDonors)
+						# print('%d of %d donors observed for %s are matched; score %0.2f ' %(len(me1Matched), nDonors, me1.assignment, Me1score))
+						# print('%d of %d donors observed for %s are matched; score %0.2f \n ' %(len(me2Matched), nDonors, me2.assignment, Me2score))
+						self.color_geminal(me1, Me1score)
+						self.color_geminal(me2, Me2score)
 
+
+		## NOESY strip terminology: the w2,w3 frequencies in the NOEYS represent the acceptor group, while w1 represents the donor group
+		## For each methyl in the HMQC 2D extract the NOESY strip, each peak in the strip represents a possible donor
 		for x in range(len(HMQCpeaks)):
 			me1 =  HMQCpeaks[x]
-			Donor_check = [peak for peak in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak].frequency[1] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[2] - me1.frequency[1]) < s.Htol)]
-			Donors = [peak for peak in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak].frequency[1] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak].frequency[2] - me1.frequency[1]) < s.Htol) and peak not in Used]
-			if len(Donor_check) == 0:
+			Donor_check =self.Find_3D_Donors(NOESYpeaks,me1.frequency[0],me1.frequency[1],[])
+			Donors = self.Find_3D_Donors(NOESYpeaks,me1.frequency[0],me1.frequency[1],Used)
+			if 'C' not in me1.note and len(Donor_check) == 0:
+				me1.color = 'dark red'
+			if 'C' in me1.note and len(Donor_check) <= 1:
 				me1.color = 'dark red'
 			if len(Donors) >=1:
+				me1.color = 'white'
 				for donor in Donors:
-					## Find the possible peaks in the HMQC that have the same w1 frequency as the donor peak
+					## Find the possible peaks in the HMQC that have the same w1 frequency as the donor peak in the NOESY
 					Me2list = [me for me in range(len(HMQCpeaks)) if (abs(NOESYpeaks[donor].frequency[0] - HMQCpeaks[me].frequency[0]) < s.Ctol)]
 					NOESY_A, diff2, Me2list_2= [],[],[]
+					### For each possible w1 match check the NOESY strip for a cross peak with w1 = acceptor 13C freq 
 					for y in Me2list:
 						self.count = self.count + 1
 						message = ('Checking possible combination %d in NOESY' % (self.count))
@@ -931,28 +1152,30 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						if y != x:
 							## Find all the cross peaks in the NOESY that have w1 = me1C and w2-w3 =  me2C-H values
 							me2 = HMQCpeaks[y]
-							NOESY_A_short = [peak2 for peak2 in range(len(NOESYpeaks)) if (abs(NOESYpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak2].frequency[1] - me2.frequency[0]) < s.Ctol) and (abs(NOESYpeaks[peak2].frequency[2] - me2.frequency[1]) < s.Htol) and peak2 not in Used]
+							NOESY_A_short = self.Find_3D_Acceptor(NOESYpeaks,me1.frequency[0], me2.frequency[0], me2.frequency[1], Used)
 							if len(NOESY_A_short) >= 1:
 								for idy in NOESY_A_short:
-									d = abs(NOESYpeaks[idy].frequency[0] - me1.frequency[0]) + abs(NOESYpeaks[donor].frequency[0] - me2.frequency[0])
+									d = abs(NOESYpeaks[idy].frequency[0] - me1.frequency[0]) + abs(NOESYpeaks[donor].frequency[0] - NOESYpeaks[idy].frequency[1]) + abs(HMQCpeaks[y].frequency[0]-NOESYpeaks[donor].frequency[0])
 									diff2.append(d)
 									Me2list_2.append(y)
 									NOESY_A.append(idy)
 					if len(Me2list_2) >= 1:
 						me2 = HMQCpeaks[Me2list_2[diff2.index(min(diff2))]]
 						NOESY_A = NOESY_A[diff2.index(min(diff2))]
-						NOESYpeaks[NOESY_A].color = 'green'
-						NOESYpeaks[donor].color = 'green'
+						## Assign the 
+						self.Assign_3D_NOESY(NOESYpeaks[donor],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
+						self.Assign_3D_NOESY(NOESYpeaks[NOESY_A],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+						NOESYpeaks[NOESY_A].color = 'dark green'
+						NOESYpeaks[NOESY_A].note = ''
+						NOESYpeaks[donor].color = 'dark green'
 						Used.append(NOESY_A)
 						Used.append(donor)
-						NOESYpeaks[donor].assign(0, me2.resonances()[0].group.name, me2.resonances()[0].atom.name)
-						NOESYpeaks[donor].assign(1, me1.resonances()[0].group.name, me1.resonances()[0].atom.name)
-						NOESYpeaks[donor].assign(2, me1.resonances()[1].group.name, me1.resonances()[1].atom.name)
-						NOESYpeaks[donor].show_assignment_label()
-						NOESYpeaks[NOESY_A].assign(0, me1.resonances()[0].group.name, me1.resonances()[0].atom.name)
-						NOESYpeaks[NOESY_A].assign(1, me2.resonances()[0].group.name, me2.resonances()[0].atom.name)
-						NOESYpeaks[NOESY_A].assign(2, me2.resonances()[1].group.name, me2.resonances()[1].atom.name)
-						NOESYpeaks[NOESY_A].show_assignment_label()
+					if len(Me2list_2) >= 2:
+						dnote = ''
+						for p,d  in zip(Me2list_2, diff2):
+							dnote = dnote + HMQCpeaks[p].assignment.split('-')[0] +' %4.3f; ' %(d)
+						NOESYpeaks[donor].note = dnote[:-1]
+						NOESYpeaks[donor].color = 'light green'
 
 		message = ('Found %d Reciprocated peaks in NOESY' % (len(Used)))
 		self.progress_report(message)
@@ -962,12 +1185,11 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		Diagonal = []
 		Orphans = []
 		for peak in Unused:
+			if (abs(peak.frequency[0]-peak.frequency[1]) < s.Ctol):
+				Diagonal.append(peak)
+				peak.color = 'cyan'
+				peak.note = 'Diagonal'
 			for me in HMQCpeaks:
-				if (abs(peak.frequency[0]-me.frequency[0]) < s.Ctol) and (abs(peak.frequency[1]-me.frequency[0]) < s.Ctol) and (abs(peak.frequency[2]-me.frequency[1]) < s.Htol):
-						Diagonal.append(peak)
-						peak.color = 'cyan'
-						peak.note = 'Diagonal'
-						Diagonal.append(peak)
 				if (abs(peak.frequency[0]-me.frequency[0]) < s.Ctol):
 					for me2 in HMQCpeaks:
 						if me2 != me:
@@ -979,7 +1201,16 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 									peak.assign(0, '?', '?')
 									peak.assign(1, '?', '?')
 									peak.assign(2, '?', '?')
-									peak.show_assignment_label()
+									try: 
+										peak.label.shows_assignment = 0
+									except:
+										continue
+		for peakid in Used:
+			peak = NOESYpeaks[peakid]
+			if (abs(peak.frequency[0]-me.frequency[1]) < s.Ctol):
+				Diagonal.append(peak)
+				peak.color = 'cyan'
+				peak.note = 'Diagonal'
 
 		for peak in Unused:
 			if peak not in Orphans and peak not in Diagonal:
@@ -993,8 +1224,9 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 	def Generate_MAGIC_cb(self):
 
 		s = self.get_settings()
-		if not os.path.exists(os.getcwd() + '/MAGIC/'):
-			os.makedirs(os.getcwd() + '/MAGIC/')
+		outdir = self.session.project.sparky_directory + '/' + self.session.project.save_path.split('/')[-2] + '/MAGIC/'
+		if not os.path.exists(outdir):
+			os.makedirs(outdir)
 
 		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		replacements = {'?-?':''}
@@ -1007,7 +1239,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 					if peak.assignment not in s.Labels:
 						replacements[peak.assignment]=str(x+1)
 		
-		HMCQnew = open(os.getcwd() + '/MAGIC/'+ s.hmqc_spectrum.name + '_magic.list', 'w')
+		HMCQnew = open(outdir + s.hmqc_spectrum.name + '_magic.list', 'w')
 		for x in range(len(HMQCpeaks)):
 			peak = HMQCpeaks[x]
 			passign = peak.assignment
@@ -1029,18 +1261,18 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			HMCQnew.write("  %-14s %10.3f %10.3f\t\t%s\n" %(passign, peak.frequency[0],peak.frequency[1],note))
 		HMCQnew.close()
 
-		CCHnoesy = open(os.getcwd() + '/MAGIC/'+ s.noesy_spectrum.name + '.list','w')
+		CCHnoesy = open(outdir + s.noesy_spectrum.name + '.list','w')
 		CCHnoesy.write('13C;13C;1H\n0.1;0.1;0.01\n')
 		for noe in s.noesy_spectrum.peak_list():
 			CCHnoesy.write("%17s %10.3f %10.3f %10.3f  %11.0f    \n" % ('?-?-?',noe.frequency[0], noe.frequency[1], noe.frequency[2], noe.data_height))
 		CCHnoesy.close()
 
-		seqauto = open(os.getcwd() + '/MAGIC/seq.auto','w')
+		seqauto = open(outdir + 'seq.auto','w')
 		for res in s.Seq:
 			seqauto.write(res+'\n')
 		seqauto.close()
 
-		Magic_start = open(os.getcwd() + '/MAGIC/start.txt','w')
+		Magic_start = open(outdir + 'start.txt','w')
 		Magic_start.write('############ Input ###########\n')
 		Magic_start.write('##2d reference spectrum:\n%s\n' % (s.hmqc_spectrum.name + '_magic.list'))
 		Magic_start.write('##3d NOESY:\n%s\n' % (s.noesy_spectrum.name + '.list'))
@@ -1055,46 +1287,171 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		Magic_start.write('##score threshold factor:\n1\n##Distance threshold:\n7 10\n##Score tolerance for one-by-one step (off or on):\noff\n##Area of expected conformational changes:\n')
 		Magic_start.close()
 		try:
+			shutil.copy(s.pdb_path,outdir)
+		except OSError:
+			pass
+		tkMessageBox.showinfo('Finished', "Input files for MAGIC\nSuccessfully generated\n%s" %(outdir))
+		return
+	# ------------------------------------------------------------------------------
+	# 
+	def Generate_FLYA_cb(self):
+
+		infowindo = Tkinter.Toplevel(self.top)
+		infowindo.title('Generate Methyl FLYA Input')
+		dp = directory_field(infowindo, 'Select Directory Location', 'Browse...')
+		self.dirpath = dp.variable
+		dp.frame.pack(side = 'top', anchor = 'w')
+		explain = ('Specify name of output diectory and root of output files (not spaces)')
+		w = Tkinter.Label(infowindo, text = explain, justify = 'left')
+		w.pack(side = 'top', anchor = 'w')
+		dn = tkutil.entry_field(infowindo, 'Directory Name: ', '', 15)
+		self.dirname = dn.variable
+		dn.frame.pack(side = 'top', anchor = 'w')
+		fn = tkutil.entry_field(infowindo, 'File Name: ', '', 15)
+		self.filename = fn.variable
+		fn.frame.pack(side = 'top', anchor = 'w')
+		
+		br = tkutil.button_row(infowindo,
+								('Ok', self.make_methylFLYA_cb))
+		br.frame.pack(side = 'top', anchor = 'w')
+	def close_child(self, w):
+		w.destroy()
+	def make_methylFLYA_cb(self):
+		outdir = self.dirpath.get()+'/' + self.dirname.get() + '/'
+		name = self.filename.get()
+
+		if not os.path.exists(outdir):
+			os.makedirs(outdir)
+		s = self.get_settings()
+		Iids = [res.replace('I','') for res in s.flya_atoms if res.split('.')[-1][0] == 'I']
+		Lids = [res.replace('L','') for res in s.flya_atoms if res.split('.')[-1][0] == 'L']
+		Vids = [res.replace('V','') for res in s.flya_atoms if res.split('.')[-1][0] == 'V']
+		Mids = [res.replace('M','') for res in s.flya_atoms if res.split('.')[-1][0] == 'M']
+		Aids = [res.replace('A','') for res in s.flya_atoms if res.split('.')[-1][0] == 'A']
+		Tids = [res.replace('T','') for res in s.flya_atoms if res.split('.')[-1][0] == 'T']
+		IDtrans = {'I':Iids,'L':Lids, 'V':Vids, 'M':Mids, 'A':Aids, 'T':Tids}
+		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		HMQCnew = open(outdir + name + '_2DHMQC.peaks', 'w')
+		HMBCout = open(outdir + name + '_HMBC-HMQC.peaks', 'w')
+		HMQCnew.write('# Number of dimensions 2\n#FORMAT xeasy2D\n#INAME 1 C\n#INAME 2 H\n#SPECTRUM C13HSQC C H\n')
+		HMBCout.write('# Number of dimensions 4\n#FORMAT xeasy4D\n#INAME 1 C1\n#INAME 2 H1\n#INAME 3 C2\n#INAME 4 H2\n#SPECTRUM HCcCH C1 H1 C2 H2\n')
+		LVIDs = {}
+		Freqs = {}
+		LVpeaks = []
+		for x in range(len(HMQCpeaks)):
+			peak = HMQCpeaks[x]
+			if peak.is_assigned != 0:
+				# if len(peak.resonances()[0].group.symbol) == 1:
+				if len(peak.note) < 1: 
+					tkMessageBox.showinfo('Input Error', " Missing Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
+					return
+				if len(peak.note) >= 1 and peak.note.split()[0] not in ['I','L','V','M','A','T']:
+					tkMessageBox.showinfo('Input Error', "Ambiguous Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
+					return
+				ptype = peak.note[0]
+				trans = IDtrans[peak.note[0]]
+				n = x + 1
+				HMQCnew.write("%4.0f%8.3f%8.3f 1 U%19.3e         0 e   0  %8s  %8s\n" %(n, peak.frequency[0],peak.frequency[1], peak.data_height, trans[0], trans[0].replace('C','Q')))
+				if ptype in ['L','V'] and ';' not in peak.note: trans.remove(trans[1])
+				if ptype in ['L','V'] and 'C' in peak.note:
+					LVIDs[peak.assignment] = trans[0]
+					Freqs[peak.assignment] = peak.frequency
+
+					LVpeaks.append(peak)
+				trans.remove(trans[0])
+		for y in range(len(LVpeaks)):
+			peak = LVpeaks[y]
+			n = y +1 
+			pair = peak.note.split(';')[-1]
+			HMBCout.write("%4.0f%8.3f%8.3f%8.3f%8.3f 1 U   1.000000E+00  0.000000E+00 e 0    %8s   %8s   %8s   %8s\n" %(n, peak.frequency[0],peak.frequency[1], Freqs[pair][0], Freqs[pair][1], LVIDs[peak.assignment], LVIDs[peak.assignment].replace('C','Q'),LVIDs[pair], LVIDs[pair].replace('C','Q')))
+
+		HMQCnew.close()
+		HMBCout.close()
+		CCHnoesy = open(outdir + name + '_3D_NOESY.peaks','w')
+		CCHnoesy.write('# Number of dimensions 3\n#FORMAT xeasy3D\n#INAME 1 C1\n#INAME 2 C2\n#INAME 3 H1\n#SPECTRUM CCNOESY3D C1 C2 H1\n')
+		n = 0
+		for noe in s.noesy_spectrum.peak_list():
+			n = n +1 
+			CCHnoesy.write("%4.0f%8.3f%8.3f%8.3f 1 U%19.3e         0 e   0 -         -         -\n" % (n,noe.frequency[0], noe.frequency[1], noe.frequency[2], noe.data_height))
+		CCHnoesy.close()
+
+		seqauto = open(outdir + name +'.seq','w')
+		for (resi,resn) in self.sequence:
+			seqauto.write('%s  %s\n' %(A_dict[resn], resi))
+		seqauto.close()
+		try:
 			shutil.copy(s.pdb_path,'./MAGIC/')
 		except OSError:
 			pass
+		tkMessageBox.showinfo('Finished', "Input files for methylFLYA\nSuccessfully generated\n%s" %(outdir))
+		return
+
 	# ------------------------------------------------------------------------------
 	# 
 	def Read_MAGIC_results_cb(self):
 		s = self.get_settings()
 		file_opt = options = {}
 		options['defaultextension'] = '.list'
-		options['filetypes'] = [('portable document format', '.list')]
-		options['title'] = 'Select Magig Output List'
+		options['filetypes'] = [('Magig Output List', '.list'), ('methylFLYA tab', '.tab')]
+		options['title'] = 'Select Output File'
 
 		path = tkFileDialog.askopenfilename(**file_opt)
-		print path 
-		peak_list = open(path).readlines()
-		if path.split('/')[-1] == 'hmqc.list':
+		if path.split('.')[-1] == 'list':
+			peak_list = open(path).readlines()
+			if path.split('/')[-1] == 'hmqc.list':
+				spectrum = s.hmqc_spectrum
+			if path.split('/')[-1] == 'hmqc_iso.list':
+				spectrum = s.hmqc_spectrum
+			if path.split('/')[-1] == 'cch_iso.list':
+				spectrum = s.noesy_spectrum 
+			if path.split('/')[-1] == 'cch.list':
+				spectrum = s.noesy_spectrum 
+			save_path_new = str(spectrum.save_path+'MAGIC')
+			save_new = open(save_path_new, 'w')
+			save_content = open(spectrum.save_path, 'r')
+			if 'condition' in open(spectrum.save_path).read():
+				for line in save_content.readlines():
+					line = line.replace('name ' + spectrum.name ,'name '+ spectrum.name + '_magic')
+					if 'condition' in line:
+						line = 'condition magic\n'
+					if (line=='<end view>\n'): break
+					save_new.write(line)
+			if 'condition' not in open(spectrum.save_path).read():
+				for line in save_content.readlines():
+					if 'name ' + spectrum.name in line:
+						line = 'condition magic\n' + line.replace('name ' + spectrum.name ,'name '+ spectrum.name + '_magic')
+					if (line=='<end view>\n'): break
+					save_new.write(line)
+			save_new.write('<end view>\n<ornament>\n<end ornament>\n<end spectrum>\n')
+			save_new.close()
+			self.session.open_spectrum(save_path_new)
+			spectrums=self.session.project.spectrum_list()
+			spectrum_ref_name=spectrum.name
+			for spectrum in spectrums:
+				if (spectrum.name == spectrum_ref_name+'_magic'):
+					for peak in peak_list:
+						self.create_peak(peak, spectrum)
+
+		if path.split('.')[-1] == 'tab':
 			spectrum = s.hmqc_spectrum
-		if path.split('/')[-1] == 'cch.list':
-			spectrum = s.noesy_spectrum 
-		print peak_list
-		save_path_new = str(spectrum.save_path+'MAGIC')
-		save_new = open(save_path_new, 'w')
-		save_content = open(spectrum.save_path, 'r')
-		for line in save_content.readlines():
-			line = line.replace('name ' + spectrum.name ,'name '+ spectrum.name + '_magic')
-			if (line=='<end view>\n'): 
-				break
-			save_new.write(line)
-		save_new.write('<end view>\n<ornament>\n<end ornament>\n<end spectrum>\n')
-		save_new.close()
-		self.session.open_spectrum(save_path_new)
-		spectrums=self.session.project.spectrum_list()
-		spectrum_ref_name=spectrum.name
-		for spectrum in spectrums:
-			if (spectrum.name == spectrum_ref_name+'_magic'):
-				for peak in peak_list:
-					print peak
-					self.create_peak(peak, spectrum)
-
-
+			intab = [line.strip() for line in open(path).readlines() if len(line.split()) >= 7 and 'Atom' not in line]
+			
+			save_path_new = str(spectrum.save_path+'FLYA')
+			save_new = open(save_path_new, 'w')
+			save_content = open(spectrum.save_path, 'r')
+			for line in save_content.readlines():
+				line = line.replace('name ' + spectrum.name ,'name '+ spectrum.name + '_FLYA')
+				if (line=='<end view>\n'): 
+					break
+				save_new.write(line)
+			save_new.write('<end view>\n<ornament>\n<end ornament>\n<end spectrum>\n')
+			save_new.close()
+			self.session.open_spectrum(save_path_new)
+			spectrums=self.session.project.spectrum_list()
+			spectrum_ref_name=spectrum.name
+			for spectrum in spectrums:
+				if (spectrum.name == spectrum_ref_name+'_FLYA'):
+					self.pars_flya(intab, spectrum)
 
 # ------------------------------------------------------------------------------
 # 
@@ -1102,7 +1459,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 		fields = string.split(line, None, dim + 1)
 		if len(fields) < dim + 1:
-		    return None
+			return None
 
 		assignment = sputil.parse_assignment(fields[0])
 		lbl = None
@@ -1112,20 +1469,20 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 		frequency = []
 		try:
-		    for a in range(dim):
-			f = pyutil.string_to_float(fields[a+1])
-			if f == None:
-			    return None
-			frequency.append(f)
+			for a in range(dim):
+				f = pyutil.string_to_float(fields[a+1])
+				if f == None:
+					return None
+				frequency.append(f)
 		except:
-		    return None
+			return None
 
 		if len(fields) > dim + 1:
-		    note = fields[dim + 1].replace("'",'').strip()
-		    if 'NotAss' in note:
-			note = ''
-		else:
-		    note = ''
+			note = fields[dim + 1].replace("'",'').strip()
+			if 'NotAss' in note:
+				note = ''
+			else:
+				note = note
 		return (assignment, lbl, frequency, note)
 
 # ------------------------------------------------------------------------------
@@ -1139,11 +1496,11 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			self.move_peak_onto_spectrum(peak)
 			assigned = 0
 			if assignment != None:
-			    for a in range(spectrum.dimension):
-				group_name, atom_name = assignment[a]
-				if group_name or atom_name:
-					peak.assign(a, group_name, atom_name)
-					assigned = 1
+				for a in range(spectrum.dimension):
+					group_name, atom_name = assignment[a]
+					if group_name or atom_name:
+						peak.assign(a, group_name, atom_name)
+				assigned = 1
 			if assigned:
 				peak.show_assignment_label()
 			if note:
@@ -1160,6 +1517,41 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 # ------------------------------------------------------------------------------
 # 
+	def pars_flya(self, intab, spectrum):
+
+		ResDict = {}
+		for res in intab :
+			ResDict[AAA_dict[res.split()[1]] + res.split()[2] + res.split()[0].replace('Q','H')] = [float(res.split()[3]),res.split()[5]]
+		for (resi,resn) in self.sequence:
+			if resn in self.labeling.get():
+				if self.dimethyl.state() == True or self.mono.state() == True:
+					for me in Me_dic[resn]:
+						assigment = []
+						frequency = []
+						note = ''
+						for atom in me.split('-'):
+							assigment.append(atom)
+							if resn + str(resi) + atom in ResDict.keys():
+								frequency.append(ResDict[resn + str(resi) + atom][0])
+								note = note + ResDict[resn + str(resi) + atom][1] + ','
+						if len(frequency) > 1:
+							peak = spectrum.place_peak(frequency)
+							self.move_peak_onto_spectrum(peak)
+							assigned = 0
+							peak.assign(0,resn + str(resi),assigment[0])
+							peak.assign(1,resn + str(resi),assigment[1])
+							assigned = 1
+							peak.show_assignment_label()
+							peak.note = note[:-1]
+							if float(note.split(',')[0]) >= 80:
+								peak.color = 'green'
+								peak.label.color = 'green'
+							if float(note.split(',')[0]) < 80:
+								peak.color = 'gold'
+								peak.label.color = 'gold'
+
+# ------------------------------------------------------------------------------
+# 
 	def move_peak_onto_spectrum(self, peak):
 
 		freq = peak.frequency
@@ -1167,6 +1559,34 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		if pos != freq:
 			peak.position = pos
 			peak.alias = pyutil.subtract_tuples(freq, pos)
+
+
+# ------------------------------------------------------------------------------
+# 
+class directory_field:
+	def __init__(self, parent, title, cache_name,browse_button = 1, save = 0, width = 20):
+		self.title = title
+		self.cache_name = cache_name
+		self.frame = Tkinter.Frame(parent)
+		e = tkutil.entry_field(self.frame, title, '', width)
+		self.entry = e
+		self.variable = e.variable
+		e.frame.pack(side = 'left')
+		if browse_button:
+			self.save = save
+			b = Tkinter.Button(self.frame, text = "Browse ...", command = self.file_browse_cb)
+			b.pack(side = 'left')
+	# --------------------------------------------------------------------------
+	# Pop up a file browsing dialog and set the variable to the chosen file.
+	#
+	def file_browse_cb(self):
+		path = tkFileDialog.askdirectory()
+		if path:
+			self.variable.set(path)
+			self.entry.show_end()
+
+
+
 
 def show_dialog(session):
 	sputil.the_dialog(methyl_dialog,session).show_window(1)
