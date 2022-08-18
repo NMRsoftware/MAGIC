@@ -338,8 +338,28 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 	#
 	def update_cb(self):
 		s = self.get_settings()
+		self.update_HMQC()
 		self.stoppable_call(self.show_summary)
 
+	# ---------------------------------------------------------------------------
+	#
+	def update_HMQC(self):
+		s = self.get_settings()
+		HMQCpeaks = s.hmqc_spectrum.peak_list()
+		comment = ''
+		for peak in HMQCpeaks:
+			if len(peak.note) != 0:
+			## If the peak has no assignment give it assingment with group.symbol = metype and group.number = list index, with atom1 = C and atom2 = H
+				if peak.assignment in s.Labels:
+					peak.note = peak.note.replace(peak.note.split()[0],peak.assignment[0])
+				## If the methyl type in the note does not match the group.symbol ubdate it 
+				if len(peak.note) >= 1 and peak.assignment not in s.Labels:
+					if peak.note.split()[0].lower() != peak.resonances()[0].group.symbol:
+						peak.note = peak.note.replace(peak.resonances()[0].group.symbol, peak.note.split()[0].lower())
+						self.Assign_HMQC(peak, peak.note.split()[0].lower() + str(peak.resonances()[0].group.number), peak.resonances()[0].atom.name,peak.resonances()[1].atom.name)
+						peak.label.color = 'white'
+				if not re.search('[L,V]', peak.note) and peak.assignment not in s.Labels and peak.label.color == 'purple':
+					peak.label.color = 'white'
 
 	# ---------------------------------------------------------------------------
 	#
@@ -786,7 +806,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						self.progress_report(message)
 
 		## Clean up LV assignment, only LV peaks which are paired should have C1-H1/C2-H2 as atom names 
-		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		Lcount, Vcount = 0,0
 		for x in LVpeaks:
 			if x not in Paired: 
@@ -797,12 +816,8 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(HMQCpeaks.index(peak) + 1),'C','H')
 			if x in Paired:
 				metype = HMQCpeaks[x].note.split()[0]
-				if metype == 'V': Vcount+=0.5
-				if metype == 'L': Lcount+=0.5
-				if metype == 'LV':
-					Vcount+=0.5
-					Lcount+=0.5
-
+				if re.search('V', metype): Vcount+=0.5
+				if re.search('L', metype): Lcount+=0.5
 		x = 0
 		for peak in HMQCpeaks:
 			x= x+1 
@@ -810,9 +825,10 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 				if "C" not in peak.note:
 					if Lcount >= s.possible_Lpairs and Vcount >= s.possible_Vpairs:
 						peak.note = peak.note.replace('V','').replace('L','')
-						if not peak.note.split(): peak.note = 'AT'
+						if len(peak.note) == 0: peak.note = 'AT'
 						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(x),'C','H')
 						peak.show_assignment_label()
+						peak.label.color = 'white'
 					if 'L' in peak.note or 'V' in peak.note:
 						peak.label.color = 'purple'
 						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(x),'C','H')
@@ -1590,3 +1606,4 @@ class directory_field:
 
 def show_dialog(session):
 	sputil.the_dialog(methyl_dialog,session).show_window(1)
+
