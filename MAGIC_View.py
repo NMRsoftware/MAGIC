@@ -1,16 +1,17 @@
-import Tkinter
-from Tkinter import *
+import tkinter as tk
+import tkinter.messagebox
 import types
 import math as m
 import pyutil
-import sparky
+import poky
 import myseq
 import sputil
 import tkutil
 import os
-import tkMessageBox
-import tkFileDialog
+import expectedpeaks
 import string
+
+
 
 # ------------------------------------------------------------------------------
 #
@@ -21,7 +22,7 @@ import string
 #
 # Last updates: August 5, 2022
 #
-#
+# Copr 2022 St Jude Children's Research Hospital 
 # ------------------------------------------------------------------------------
 #
 A_dict = {'C': 'CYS', 'D': 'ASP', 'S': 'SER', 'Q': 'GLN', 'K': 'LYS',
@@ -98,7 +99,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 					sequence.append((int(line.split()[1]), AAA_dict[line.split()[0]]))
 
 		if not os.path.exists(persist_path):
-			tkMessageBox.showinfo('Input Error', "No Sequence file was found\n Please load a sequence using 'sq' command\nSave the project and relaunch MAGIC-Act")
+			tkinter.messagebox.showinfo('Input Error', "No Sequence file was found\n Please load a sequence using 'sq' command\nSave the project and relaunch MAGIC-Act")
 
 			return  self.close_cb
 		self.sequence = sequence
@@ -106,7 +107,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		self.save_file = session.project.save_path.split('/')[-1].replace('.proj', '.txt')
 		tkutil.Dialog.__init__(self, session.tk, 'MAGIC-View')
 		explain = ('Assignment Visualization and Statistics\n') 
-		w = Tkinter.Label(self.top, text = explain, justify = 'left')
+		w = tk.Label(self.top, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w')
 
 		ep = tkutil.file_field2(self.top, 'PDB file', 'Browse...', file_type=[('Protein Data Bank File', '.pdb')], default_ext='.pdb')
@@ -118,22 +119,22 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		self.labeling = lb.variable
 
 		explain = ('Specify which chain should be used')
-		w = Tkinter.Label(self.top, text = explain, justify = 'left')
+		w = tk.Label(self.top, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w')
 		ch = tkutil.entry_field(self.top, 'Use Chain(s): ', 'A', 5)
 		self.chains = ch.variable
 		ch.frame.pack(side = 'top', anchor = 'w')
 
 		explain = ('Select 2D spectra that contain assignments')
-		w = Tkinter.Label(self.top, text = explain, justify = 'left')
+		w = tk.Label(self.top, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w')    
 		self.sc = self.spectrum_choice_table(self.top)
 		self.sc.pack(side = 'top', anchor = 'w')
 
 	# Compare Assignments Box
-		self.lf2 = Tkinter.LabelFrame(self.top, text='Compare Assignments')
-		self.lf2.pack(fill=X, pady=5)
-		self.pmframe= Tkinter.Frame(self.lf2)
+		self.lf2 = tk.LabelFrame(self.top, text='Compare Assignments')
+		self.lf2.pack(fill=tk.X, pady=5)
+		self.pmframe= tk.Frame(self.lf2)
 		self.pmframe.pack(pady=5)
 		# First Spectrum
 		self.sc_ref_spectrum = spectrum_menu(session, self.pmframe, 'Ref Spectrum: ')
@@ -179,13 +180,13 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		return st.frame
 # -----------------------------------------------------------------------------
 #
-	def add_spectrum(self, spectrum, table, row):
+	def add_spectrum(self, spectrum, table, row, col):
 
 		# Make spectrum check button
 		cb = tkutil.checkbutton(table.frame, spectrum.name, 0)
 		choose_cb = pyutil.precompose(sputil.choose_spectrum_cb, spectrum, table.chosen_spectra)
 		cb.add_callback(choose_cb)
-		cb.button.grid(row = row, column = 0, sticky = 'w')
+		cb.button.grid(row = row, column = col, sticky = 'w')
 		table.spectrum_to_checkbutton[spectrum] = cb
 
 # -----------------------------------------------------------------------------
@@ -230,18 +231,17 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		file_opt = options = {}
 		options['defaultextension'] = '.txt'
 		options['filetypes'] = [('text file', '.txt')]
-		options['title'] = 'Save Pymol/Chimera X Script'
+		options['title'] = 'Save Pymol Script'
 		options['initialdir'] = self.session.project.save_path
 		options['initialfile'] = self.save_file
 
-		path = tkFileDialog.asksaveasfilename(**file_opt)
+		path = tk.filedialog.asksaveasfilename(**file_opt)
 		if path:
 			self.Generate_Pymol_cb(path)
 
 # -----------------------------------------------------------------------------
 #
 	def Generate_Pymol_cb(self,path):
-
 
 		s = self.get_settings()
 
@@ -469,7 +469,6 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 	#
 	def show_stats(self):
 		s = self.get_settings()
-		Summaryout = ''
 		self.summary_list.clear()
 		self.stoppable_loop('shifts', 100)
 		Me_dic = {"A":["CB"], "I":["CD1"], "L":["CD1", "CD2"], "M":["CE"], "T":["CG2"],"V":["CG1", "CG2"]}
@@ -559,6 +558,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 	#
 	def show_summary2(self, spectrum):
 		s = self.get_settings()
+		self.summary_list.clear()
 		self.stoppable_loop('shifts', 100)
 		sA,sI,sL,sM,sT,sV = 0,0,0,0,0,0
 		uA,uI,uL,uM,uT,uV = 0,0,0,0,0,0
@@ -566,7 +566,6 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		cA,cI,cL,cM,cT,cV = 0,0,0,0,0,0
 		isA,isI,isL,isM,isT,isV = 0,0,0,0,0,0
 		imA,imI,imL,imM,imT,imV = 0,0,0,0,0,0
-		# print s.Labels
 		aTotal = 0
 		for assignment in s.Labels:
 			if assignment[0] == 'I':sI+=1
@@ -599,7 +598,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		cTotal = cI+cL+cV+cM+cA+cT
 		sTotal = sI+2*sL+2*sV+sM+sA+sT
 		total = uI+uL+uV+uM+uA+uT+aI+aL+aV+aM+aA+aT
-		self.summary_list.append(('Assigned: %3d/%3d (%2.1f%%)' %(total, sTotal, 100*float(total)/sTotal)))
+		self.summary_list.append(('Assigned: %3d (%2.1f%%)' %(total, 100*float(total)/sTotal)))
 		self.summary_list.append('              Assignment Opt   ')
 		self.summary_list.append('   Expected  Single  Multiple  ')
 		self.summary_list.append('I    %3d       %3d     %3d   ' %(  sI, uI, aI))
@@ -616,7 +615,7 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 		RefPeaks = sorted(s.ref_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		CompPeaks = sorted(s.spectrum_2.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		if s.ref_spectrum.name == s.spectrum_2.name:
-			tkMessageBox.showinfo('Input Error', "Please select two different spectra")
+			tkinter.messagebox.showinfo('Input Error', "Please select two different spectra")
 			return
 		if s.ref_spectrum.name != s.spectrum_2.name:
 			gc = 0 
@@ -640,11 +639,9 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 								if peak.resonances()[0].group.name == peak2.resonances()[0].group.name:
 									good.append(peak)
 									gc += 1
-									print 'single Correct %d' %gc
 								if peak.resonances()[0].group.name != peak2.resonances()[0].group.name:
 									bad.append(peak)
 									bc += 1
-									print 'single Incorrect %d' %bc
 									peak.color = 'red'
 								used.append(peak2)
 							if peak.note.count(":") >= 2:
@@ -657,14 +654,11 @@ class Assignment_Progress_dialog(tkutil.Dialog, tkutil.Stoppable):
 									peak.assign(1, peak2.resonances()[1].group.name, peak2.resonances()[1].atom.name)
 									good.append(peak)
 									gc += 1
-									print 'multiple Correct %d' %gc
 								if peak2.resonances()[0].group.name not in options:
 									bad.append(peak)
 									bc += 1
-									print 'multiple Incorrect %d' %bc
 									peak.color = 'red'
 								used.append(peak2)
-			print gc
 		return good, bad
 
 	# ------------------------------------------------------------------------------
