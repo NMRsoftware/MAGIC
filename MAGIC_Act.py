@@ -1,18 +1,18 @@
-import Tkinter
-from Tkinter import *
+import tkinter as tk
+import tkinter.messagebox
 import types
 import re
 import math as m
 import pyutil
-import sparky
+import poky
 import sputil
 import tkutil
-import tkMessageBox
 import myseq
 import os
 import shutil
-import tkFileDialog
 import string
+
+
 
 
 # ------------------------------------------------------------------------------
@@ -24,7 +24,7 @@ import string
 #
 # Last updates: August 5, 2022
 #
-#
+# Copr 2022 St Jude Children's Research Hospital 
 # ------------------------------------------------------------------------------
 #
 AAA_dict = {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
@@ -160,7 +160,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 					sequence.append((int(line.split()[1]), AAA_dict[line.split()[0]]))
 
 		if not os.path.exists(persist_path):
-			tkMessageBox.showinfo('Input Error', "No Sequence file was found\n Please load a sequence using 'sq' command\nSave the project and relaunch MAGIC-Act")
+			tkinter.messagebox.showinfo('Input Error', "No Sequence file was found\n Please load a sequence using 'sq' command\nSave the project and relaunch MAGIC-Act")
 
 			return	self.close_cb
 
@@ -169,34 +169,34 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		tkutil.Dialog.__init__(self, session.tk, 'MAGIC-Act')
 
 		explain = ('Preparation for Automated Methyl Assignment:')
-		w = Tkinter.Label(self.top, text = explain, justify = 'left')
+		w = tk.Label(self.top, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w',padx=2)
 		sl = tkutil.scrolling_list(self.top, 'Status Report', 15)
-		sl.frame.pack(fill = 'both', expand = 1)
+		sl.frame.pack(fill='both', expand = 1)
 		self.summary_list = sl
 
 
 	# Primary Methyl HMQC spectrum 
-		self.lf2 = Tkinter.LabelFrame(self.top, text='Primary HMQC (defines w2, w3 dimensions of NOESY)')
-		self.lf2.pack(fill=X, pady=5)
-		self.pmframe= Tkinter.Frame(self.lf2)
+		self.lf2 = tk.LabelFrame(self.top, text='Primary HMQC (defines w2, w3 dimensions of NOESY)')
+		self.lf2.pack(fill=tk.X, pady=5)
+		self.pmframe= tk.Frame(self.lf2)
 		self.pmframe.pack(pady=5)
 		lb = tkutil.entry_field(self.pmframe, 'Labeled Methyls: ', 'ILVMAT', 8)
-		lb.frame.pack(side =LEFT, anchor='w')
+		lb.frame.pack(side=tk.LEFT, anchor='w')
 		self.labeling = lb.variable
 		self.sc_HMQC_2D = HMQC_spectrum_menu(session, self.pmframe, 'Spectrum: ')
-		self.sc_HMQC_2D.frame.pack(side =LEFT,padx=3, expand = 1)
+		self.sc_HMQC_2D.frame.pack(side=tk.LEFT,padx=3, expand = 1)
 
 	# Type Labeled Methyl HMQC spectrum 
-		self.lf3 = Tkinter.LabelFrame(self.top, text='Type Labeled HMQC')
-		self.lf3.pack(fill=X, pady=5)
-		self.tmframe= Tkinter.Frame(self.lf3)
+		self.lf3 = tk.LabelFrame(self.top, text='Type Labeled HMQC')
+		self.lf3.pack(fill=tk.X, pady=5)
+		self.tmframe= tk.Frame(self.lf3)
 		self.tmframe.pack(pady=5)
 		tlb = tkutil.entry_field(self.tmframe, 'Selected Methyls: ', '', 8)
-		tlb.frame.pack(side =LEFT, anchor='w')
+		tlb.frame.pack(side=tk.LEFT, anchor='w')
 		self.typelabeling = tlb.variable
 		self.Type_HMQC_2D = HMQC_spectrum_menu(session, self.tmframe, 'Spectrum: ')
-		self.Type_HMQC_2D.frame.pack(side =LEFT,padx=3, expand = 1)
+		self.Type_HMQC_2D.frame.pack(side=tk.LEFT,padx=3, expand = 1)
 
 	# Select Cm-CmHm NOESY Spectrum 
 		self.sc_CCH_NOESY = spectrum_menu_3D(session, self.top, 'Cm-CmHm NOESY Spectrum: ')
@@ -207,23 +207,23 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		self.sc_HMBC.frame.pack(side = 'top', anchor = 'w',padx=2, pady=5)
 
 	# PDB Information 
-		self.lf1 = Tkinter.LabelFrame(self.top, text='PDB')
-		self.lf1.pack(fill=X, pady=5)
-		self.pdbframe= Tkinter.Frame(self.lf1)
+		self.lf1 = tk.LabelFrame(self.top, text='PDB')
+		self.lf1.pack(fill=tk.X, pady=5)
+		self.pdbframe= tk.Frame(self.lf1)
 		self.pdbframe.pack(pady=5)
 		ep = tkutil.file_field2(self.pdbframe, 'PDB file', 'Browse...', file_type=[('Protein Data Bank File', '.pdb')], default_ext='.pdb')
 		self.pdb_path = ep.variable
-		ep.frame.pack(side=LEFT, anchor='w')
+		ep.frame.pack(side=tk.LEFT, anchor='w')
 		e = tkutil.entry_field(self.pdbframe, 'distance cutoff: ', '6', 5)
 		self.max_dist = e.variable
-		e.frame.pack(side=LEFT,fill=X, expand=1)
+		e.frame.pack(side=tk.LEFT,fill=tk.X, expand=1)
 		e = tkutil.entry_field(self.pdbframe, 'chain: ', 'A', 5)
 		self.chians = e.variable
-		e.frame.pack(side=LEFT,fill=X, expand=1)
+		e.frame.pack(side=tk.LEFT,fill=tk.X, expand=1)
 
 	# Type of Methyl Labeling 
 		explain = ('LV Labeling')
-		w = Tkinter.Label(self.top, text = explain, justify = 'left')
+		w = tk.Label(self.top, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w',padx=2)
 
 		di = tkutil.checkbutton(self.top, 'Dimethyl', 1)
@@ -248,27 +248,27 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 	# PPM Tolerances for filtering noesy and finding geminal pairs
 		er = tkutil.entry_row(self.top, 'PPM tolerance: ',
-																		('1H', '0.01', 5),
-																		('13C', '0.10', 5))
+								('1H', '0.01', 5),
+								('13C', '0.10', 5))
 		er.frame.pack(side = 'top', anchor = 'w',padx=2)
 		self.ppm_range = er
 
-		progress_label = Tkinter.Label(self.top, anchor = 'nw')
+		progress_label = tk.Label(self.top, anchor = 'nw')
 		progress_label.pack(side = 'top', anchor = 'w',padx=2)
 
 		br = tkutil.button_row(self.top,
-													 ('Type Peaks', self.Type_peaks),
-													 ('Find Geminal Pairs', self.Geminal_cb),
-													  ('Check NOESY', self.NOESY_cb),
-													 ('Update', self.update_cb))
+						('Type Peaks', self.Type_peaks),
+						('Find Geminal Pairs', self.Geminal_cb),
+						('Check NOESY', self.NOESY_cb),
+						('Update', self.update_cb))
 
 		br.frame.pack(side = 'top', anchor = 'w')
 
 		br2 = tkutil.button_row(self.top, ('Generate MAGIC Input', self.Generate_MAGIC_cb),
-											('Generate FLYA Input', self.Generate_FLYA_cb),
-											('Read Result', self.Read_MAGIC_results_cb),
-											('Close', self.close_cb),
-											('Stop', self.stop_cb))
+								    ('Generate FLYA Input', self.Generate_FLYA_cb),
+								    ('Read Result', self.Read_MAGIC_results_cb),
+								    ('Close', self.close_cb),
+								    ('Stop', self.stop_cb))
 		br2.frame.pack(side = 'top', anchor = 'w')
 
 		self.settings = self.get_settings()
@@ -338,28 +338,8 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 	#
 	def update_cb(self):
 		s = self.get_settings()
-		self.update_HMQC()
 		self.stoppable_call(self.show_summary)
 
-	# ---------------------------------------------------------------------------
-	#
-	def update_HMQC(self):
-		s = self.get_settings()
-		HMQCpeaks = s.hmqc_spectrum.peak_list()
-		comment = ''
-		for peak in HMQCpeaks:
-			if len(peak.note) != 0:
-			## If the peak has no assignment give it assingment with group.symbol = metype and group.number = list index, with atom1 = C and atom2 = H
-				if peak.assignment in s.Labels:
-					peak.note = peak.note.replace(peak.note.split()[0],peak.assignment[0])
-				## If the methyl type in the note does not match the group.symbol ubdate it 
-				if len(peak.note) >= 1 and peak.assignment not in s.Labels:
-					if peak.note.split()[0].lower() != peak.resonances()[0].group.symbol:
-						peak.note = peak.note.replace(peak.resonances()[0].group.symbol, peak.note.split()[0].lower())
-						self.Assign_HMQC(peak, peak.note.split()[0].lower() + str(peak.resonances()[0].group.number), peak.resonances()[0].atom.name,peak.resonances()[1].atom.name)
-						peak.label.color = 'white'
-				if not re.search('[L,V]', peak.note) and peak.assignment not in s.Labels and peak.label.color == 'purple':
-					peak.label.color = 'white'
 
 	# ---------------------------------------------------------------------------
 	#
@@ -708,42 +688,43 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 	# ------------------------------------------------------------------------------
 	#
-	#                               Geminal_Pairs_cb                                
-	#
-	#   This section uses the HMBC-HMQC 3D and the typed methyl HMQC 2D to find geminal 
-	#   pairs
-	#
-	#   Only HMQC peaks with L or V in their type are considered 
-	#   
-	#   To find the geminal pair (Me1, Me2) search the HMBC3D to find the acceptor cross peak HMBC_A. 
-	#   A cross peaks with (abs(w2 - Me1c) < Ctol) and (abs(w3 -Me1h) < Htol) 
-	#   In the event that more than one cross peak matches this condition, common in overlapped spectra,
-	#   the cross peaks with the smallest deviation from Me1 is selected. 
-	#   The w1 of HMBC_A is then used to find the donor methyl (Me2) and cross peak in the HMBC (HMBC_D). 
-	#   A short list of possible candidates for Me2 is found by filtering the HMQC peak list according to 
-	#   abs(HMBC_A_w1 - Me2c) < Ctol. 
-	#   Then the correct methyl is found by further searching the HMBC 3D to find peaks with 
-	#       (abs(w1 - Me1c) < Ctol) & (abs(w2 -Me2c) < Ctol) & (abs(w3-Me2h) < Htol)
-	#   generating HMBC_D
-	#   In the event that more than one HMBC cross peaks satisfies this condition the one with the smallest deviation 
-	#   from  w1 - Me1c and w2 - Me2c is selected. 
-	#   Once a single Me1, Me2, HMBC_A, are HBC_D are found they are assigned and paired in the notes section, 
-	#   and the peaks are added to list to prevent attempted reuse.
-	#   If the peak is not already assigned it is give then group.symbol u and group.number = LVcount
-
+	'''                               Geminal_Pairs_cb                                
+	
+	   This section uses the HMBC-HMQC 3D and the typed methyl HMQC 2D to find geminal 
+	   pairs
+	
+	   Only HMQC peaks with L or V in their type are considered 
+	   
+	   To find the geminal pair (Me1, Me2) search the HMBC3D to find the acceptor cross peak HMBC_A. 
+	   A cross peaks with (abs(w2 - Me1c) < Ctol) and (abs(w3 -Me1h) < Htol) 
+	   In the event that more than one cross peak matches this condition, common in overlapped spectra,
+	   the cross peaks with the smallest deviation from Me1 is selected. 
+	   The w1 of HMBC_A is then used to find the donor methyl (Me2) and cross peak in the HMBC (HMBC_D). 
+	   A short list of possible candidates for Me2 is found by filtering the HMQC peak list according to 
+	   abs(HMBC_A_w1 - Me2c) < Ctol. 
+	   Then the correct methyl is found by further searching the HMBC 3D to find peaks with 
+	       (abs(w1 - Me1c) < Ctol) & (abs(w2 -Me2c) < Ctol) & (abs(w3-Me2h) < Htol)
+	   generating HMBC_D
+	   In the event that more than one HMBC cross peaks satisfies this condition the one with the smallest deviation 
+	   from  w1 - Me1c and w2 - Me2c is selected. 
+	   Once a single Me1, Me2, HMBC_A, are HBC_D are found they are assigned and paired in the notes section, 
+	   and the peaks are added to list to prevent attempted reuse.
+	   If the peak is not already assigned it is give then group.symbol u and group.number = LVcount
+	'''
 
 	def Geminal_Pairs_cb(self):
 		s = self.get_settings()
 		if s.hmqc_spectrum.dimension != 2:
-			tkMessageBox.showinfo('Input Error', "Please Select 2D Methyl Spectrum")
+			tkinter.messagebox.showinfo('Input Error', "Please Select 2D Methyl Spectrum")
 			return
 		if s.HMBC_spec.dimension != 3:
-			tkMessageBox.showinfo('Input Error', "Please Select 3D NOESY Spectrum")
+			tkinter.messagebox.showinfo('Input Error', "Please Select 3D HMBC-HMQC Spectrum")
 			return
 		self.Type_peaks()	# run type peaks so that all the peaks will have a type and temporary assignment
-		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
+		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.frequency[0]))
 		LVpeaks = []
 		for me in range(len(HMQCpeaks)):
+			# if re.search('[L,V]', HMQCpeaks[me].note.split()[0]):
 			if 'L' in HMQCpeaks[me].note or 'V' in HMQCpeaks[me].note :
 				if "C" in HMQCpeaks[me].note:
 					HMQCpeaks[me].note = HMQCpeaks[me].note.split()[0]
@@ -806,6 +787,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						self.progress_report(message)
 
 		## Clean up LV assignment, only LV peaks which are paired should have C1-H1/C2-H2 as atom names 
+		HMQCpeaks = sorted(s.hmqc_spectrum.peak_list(), key = lambda x: (x.assignment, x.frequency[0]))
 		Lcount, Vcount = 0,0
 		for x in LVpeaks:
 			if x not in Paired: 
@@ -816,8 +798,12 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(HMQCpeaks.index(peak) + 1),'C','H')
 			if x in Paired:
 				metype = HMQCpeaks[x].note.split()[0]
-				if re.search('V', metype): Vcount+=0.5
-				if re.search('L', metype): Lcount+=0.5
+				if metype == 'V': Vcount+=0.5
+				if metype == 'L': Lcount+=0.5
+				if metype == 'LV': 
+					Vcount+=0.5
+					Lcount+=0.5
+
 		x = 0
 		for peak in HMQCpeaks:
 			x= x+1 
@@ -825,7 +811,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 				if "C" not in peak.note:
 					if Lcount >= s.possible_Lpairs and Vcount >= s.possible_Vpairs:
 						peak.note = peak.note.replace('V','').replace('L','')
-						if len(peak.note) == 0: peak.note = 'AT'
 						self.Assign_HMQC(peak,peak.note.split()[0].lower()  + str(x),'C','H')
 						peak.show_assignment_label()
 						peak.label.color = 'white'
@@ -909,10 +894,14 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		return
 	# ------------------------------------------------------------------------------
 	# 
-	def Assign_3D_NOESY(self, peak, group1, group2, a1, a2, a3):
-		peak.assign(0,group1, a1)
-		peak.assign(1,group2, a2)
-		peak.assign(2,group2, a3)
+	def Assign_3D_NOESY(self, peak, res1, res2):
+		group1 = res1
+		group2 = res2
+		if group1[0].group.name:
+			peak.assign(0,group1[0].group.name, group1[0].atom.name)
+		if group2[0].group.name:
+			peak.assign(1,group2[0].group.name, group2[0].atom.name)
+			peak.assign(2,group2[0].group.name, group2[1].atom.name)
 		peak.show_assignment_label()
 		return
 	# ------------------------------------------------------------------------------
@@ -941,27 +930,27 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 	# ------------------------------------------------------------------------------
 	# 
-	#                               Check_NOESY_cb                                
-	#
-	#   This section uses the Cm-CmHm 3D NOESY and the types methyl HMQC 2D to: 
-	#   	1) If dimethyl labeled sample check for symmetry between geminal pairs
-	#		2) Check for reciprocity of donor acceptor pairs
-	#
-	#   1) Symmetry between geminal pairs
-	#		Only paired L/V peaks in the 2D HMQC are considered, the symmetry of the 
-	#		two NOESY strips is determined by the ratio of the maximum number of peaks observed
-	#		in both stips max(len(Me1Donors), len(Me2Doonrs)) and the weighted sum of the peaks 
-	#		observed in each individual strip (MeXscore). Peaks in both NOESY strips  that satisfy
-	#		abs(Me1.NOESY.w1 - Me2.NOESY.w1) < Ctol, are considered matched and assigned a value of 1.
-	#		The impact on unmatched peaks (p) is determined by p = meXmin/peak.data_height, where meXmin
-	#		is the minimum data height observed in meX NOESY strip.
-	#		If MeXscore is > 0.85 the geminal pairing is correct and the HMQC peak label is colored green. 
-	#		If MeXscore is <0.85 but > 0.6 the geminal pairing is most likely symmetric but require further
-	#		curation and the HMQC peak label color is set to gold. 
-	#		If MeXscor is < 0.6 the strips are not symmetric and the geminal pairing may need reevaluation, the 
-	#		HMQC peak label color is set to magenta. 
-	#	2) Reciprocity of donor acceptor pairs 
-	#		
+	'''                               Check_NOESY_cb                                
+	
+	   This section uses the Cm-CmHm 3D NOESY and the types methyl HMQC 2D to: 
+	   	1) If dimethyl labeled sample check for symmetry between geminal pairs
+			2) Check for reciprocity of donor acceptor pairs
+	
+	   1) Symmetry between geminal pairs
+			Only paired L/V peaks in the 2D HMQC are considered, the symmetry of the 
+			two NOESY strips is determined by the ratio of the maximum number of peaks observed
+			in both stips max(len(Me1Donors), len(Me2Doonrs)) and the weighted sum of the peaks 
+			observed in each individual strip (MeXscore). Peaks in both NOESY strips  that satisfy
+			abs(Me1.NOESY.w1 - Me2.NOESY.w1) < Ctol, are considered matched and assigned a value of 1.
+			The impact on unmatched peaks (p) is determined by p = meXmin/peak.data_height, where meXmin
+			is the minimum data height observed in meX NOESY strip.
+			If MeXscore is > 0.85 the geminal pairing is correct and the HMQC peak label is colored green. 
+			If MeXscore is <0.85 but > 0.6 the geminal pairing is most likely symmetric but require further
+			curation and the HMQC peak label color is set to gold. 
+			If MeXscor is < 0.6 the strips are not symmetric and the geminal pairing may need reevaluation, the 
+			HMQC peak label color is set to magenta. 
+		2) Reciprocity of donor acceptor pairs 
+	'''
 
 	# ------------------------------------------------------------------------------
 	# 
@@ -984,7 +973,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		s = self.get_settings()
 		self.count = 0
 		if s.noesy_spectrum.dimension != 3:
-			tkMessageBox.showinfo('Input Error', "Please Select 3D NOESY Spectrum")
+			tkinter.messagebox.showinfo('Input Error', "Please Select 3D NOESY Spectrum")
 			return
 		NOESYpeaks = s.noesy_spectrum.peak_list()
 		Used = []
@@ -1027,6 +1016,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 				if len(peakOverlap) > 0:
 					Overlapped.append(peakOverlap)
 			### Check the overlapped peaks.
+			
 			for olpeaks in Overlapped:
 				olDonors, olMatched, resolved = [], [], []
 				for peak in olpeaks:
@@ -1034,9 +1024,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 					for peak in self.Find_3D_Donors(NOESYpeaks,me2.frequency[0],me2.frequency[1],[]):
 						if peak not in olDonors:
 							olDonors.append(peak)
-				# print(olDonors)
 				olmin = min([NOESYpeaks[peak].data_height for peak in olDonors])
-				multimatch = 'matches '
 				for peak in olpeaks:
 					me1Matched, me2Matched, me1score = [],[],[]
 					me1 = LVpeaks[Pairs2[label2idx[peak]]] ## resolved peak 
@@ -1053,17 +1041,19 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 								me1score.append(1.1)
 								NOESYpeaks[peak].color = 'dark green'
 								Used.append(peak)
-								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
+								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances(), me1.resonances())
 							for peak2 in olDonors:
 								if (abs(NOESYpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and peak2 not in me2Matched: ## Find geminal cross peak in me2 trajectory
 									NOESYpeaks[peak2].color = 'dark green'
 									me2Matched.append(peak2)
 									olMatched.append(peak2)
 									Used.append(peak2)
-									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances(), me2.resonances())
 								if peak not in me1Matched:
 									if peak2 not in me2Matched: 
 										if (abs(NOESYpeaks[peak].frequency[0] - NOESYpeaks[peak2].frequency[0]) < s.Ctol):  ## Find shared cross peaks in me1 and me2 trajectories 
+											# if peak2 in olMatched: ## create any peaks being matched multiple times in the overlapped trace.
+											# 	new_peak = s.noesy_spectrum.place_peak([NOESYpeaks[peak].frequency[0],NOESYpeaks[peak2].frequency[1], NOESYpeaks[peak2].frequency[2]])
 											me1score.append(1.1)
 											me1Matched.append(peak)
 											me2Matched.append(peak2)
@@ -1074,7 +1064,6 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						resolved.append(me1score)
 				olUnmatched = [peak for peak in olDonors if peak not in olMatched]
 				olpenalty = sum([olmin/NOESYpeaks[peak].data_height for peak in olUnmatched])
-				# print(olpenalty)
 				for peak, score in zip(olpeaks,resolved):
 					me1 = LVpeaks[Pairs2[label2idx[peak]]] ## resolved peak 
 					me2 = LVpeaks[label2idx[peak]] ## overlapped peak
@@ -1111,13 +1100,13 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 								me1Matched.append(peak)
 								NOESYpeaks[peak].color = 'dark green'
 								Used.append(peak)
-								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
+								self.Assign_3D_NOESY(NOESYpeaks[peak],me2.resonances(),me1.resonances())
 							for peak2 in me2Donors:
 								if (abs(NOESYpeaks[peak2].frequency[0] - me1.frequency[0]) < s.Ctol) and peak2 not in me2Matched:  ## Find geminal cross peak in me2 trajectory
 									me2Matched.append(peak2)
 									NOESYpeaks[peak2].color = 'dark green'
 									Used.append(peak2)
-									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+									self.Assign_3D_NOESY(NOESYpeaks[peak2],me1.resonances(), me2.resonances())
 								if peak not in me1Matched:
 									if peak2 not in me2Matched: 
 										if (abs(NOESYpeaks[peak].frequency[0] - NOESYpeaks[peak2].frequency[0]) < s.Ctol):  ## Find shared cross peaks in me1 and me2 trajectories 
@@ -1146,6 +1135,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 
 		## NOESY strip terminology: the w2,w3 frequencies in the NOEYS represent the acceptor group, while w1 represents the donor group
 		## For each methyl in the HMQC 2D extract the NOESY strip, each peak in the strip represents a possible donor
+		NOESYpeaks = s.noesy_spectrum.peak_list()
 		for x in range(len(HMQCpeaks)):
 			me1 =  HMQCpeaks[x]
 			Donor_check =self.Find_3D_Donors(NOESYpeaks,me1.frequency[0],me1.frequency[1],[])
@@ -1179,8 +1169,8 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						me2 = HMQCpeaks[Me2list_2[diff2.index(min(diff2))]]
 						NOESY_A = NOESY_A[diff2.index(min(diff2))]
 						## Assign the 
-						self.Assign_3D_NOESY(NOESYpeaks[donor],me2.resonances()[0].group.name, me1.resonances()[0].group.name,me2.resonances()[0].atom.name,me1.resonances()[0].atom.name,me1.resonances()[1].atom.name)
-						self.Assign_3D_NOESY(NOESYpeaks[NOESY_A],me1.resonances()[0].group.name, me2.resonances()[0].group.name,me1.resonances()[0].atom.name,me2.resonances()[0].atom.name,me2.resonances()[1].atom.name)
+						self.Assign_3D_NOESY(NOESYpeaks[donor],me2.resonances(), me1.resonances())
+						self.Assign_3D_NOESY(NOESYpeaks[NOESY_A],me1.resonances(), me2.resonances())
 						NOESYpeaks[NOESY_A].color = 'dark green'
 						NOESYpeaks[NOESY_A].note = ''
 						NOESYpeaks[donor].color = 'dark green'
@@ -1261,7 +1251,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			passign = peak.assignment
 			note = peak.note
 			if len(note) == 0:
-				tkMessageBox.showinfo('Input Error', "Missing peak type")
+				tkinter.messagebox.showinfo('Input Error', "Missing peak type")
 				return
 			if s.rename == True:
 				if passign in s.Labels:
@@ -1271,14 +1261,14 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 						note = '-'
 			if passign not in s.Labels:
 				passign = str(x+1)
-			for src, target in replacements.iteritems():
+			for src, target in replacements.items():
 				note = note.replace(src, target)
 				passign = passign.replace(src, target)
 			HMCQnew.write("  %-14s %10.3f %10.3f\t\t%s\n" %(passign, peak.frequency[0],peak.frequency[1],note))
 		HMCQnew.close()
 
 		CCHnoesy = open(outdir + s.noesy_spectrum.name + '.list','w')
-		CCHnoesy.write('13C;13C;1H\n0.1;0.1;0.01\n')
+		CCHnoesy.write('13C;13C;1H\n{:};{:};{:}\n'.format(s.Ctol,s.Ctol,s.Htol))
 		for noe in s.noesy_spectrum.peak_list():
 			CCHnoesy.write("%17s %10.3f %10.3f %10.3f  %11.0f    \n" % ('?-?-?',noe.frequency[0], noe.frequency[1], noe.frequency[2], noe.data_height))
 		CCHnoesy.close()
@@ -1306,19 +1296,19 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			shutil.copy(s.pdb_path,outdir)
 		except OSError:
 			pass
-		tkMessageBox.showinfo('Finished', "Input files for MAGIC\nSuccessfully generated\n%s" %(outdir))
+		tkinter.messagebox.showinfo('Finished', "Input files for MAGIC\nSuccessfully generated\n%s" %(outdir))
 		return
 	# ------------------------------------------------------------------------------
 	# 
 	def Generate_FLYA_cb(self):
 
-		infowindo = Tkinter.Toplevel(self.top)
+		infowindo = tk.Toplevel(self.top)
 		infowindo.title('Generate Methyl FLYA Input')
 		dp = directory_field(infowindo, 'Select Directory Location', 'Browse...')
 		self.dirpath = dp.variable
 		dp.frame.pack(side = 'top', anchor = 'w')
 		explain = ('Specify name of output diectory and root of output files (not spaces)')
-		w = Tkinter.Label(infowindo, text = explain, justify = 'left')
+		w = tk.Label(infowindo, text = explain, justify = 'left')
 		w.pack(side = 'top', anchor = 'w')
 		dn = tkutil.entry_field(infowindo, 'Directory Name: ', '', 15)
 		self.dirname = dn.variable
@@ -1359,10 +1349,10 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			if peak.is_assigned != 0:
 				# if len(peak.resonances()[0].group.symbol) == 1:
 				if len(peak.note) < 1: 
-					tkMessageBox.showinfo('Input Error', " Missing Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
+					tkinter.messagebox.showinfo('Input Error', " Missing Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
 					return
 				if len(peak.note) >= 1 and peak.note.split()[0] not in ['I','L','V','M','A','T']:
-					tkMessageBox.showinfo('Input Error', "Ambiguous Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
+					tkinter.messagebox.showinfo('Input Error', "Ambiguous Peak Type\nfor %s\nUpdate list try again" %(peak.assignment))
 					return
 				ptype = peak.note[0]
 				trans = IDtrans[peak.note[0]]
@@ -1399,7 +1389,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 			shutil.copy(s.pdb_path,'./MAGIC/')
 		except OSError:
 			pass
-		tkMessageBox.showinfo('Finished', "Input files for methylFLYA\nSuccessfully generated\n%s" %(outdir))
+		tkinter.messagebox.showinfo('Finished', "Input files for methylFLYA\nSuccessfully generated\n%s" %(outdir))
 		return
 
 	# ------------------------------------------------------------------------------
@@ -1411,7 +1401,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 		options['filetypes'] = [('Magig Output List', '.list'), ('methylFLYA tab', '.tab')]
 		options['title'] = 'Select Output File'
 
-		path = tkFileDialog.askopenfilename(**file_opt)
+		path = tk.filedialog.askopenfilename(**file_opt)
 		if path.split('.')[-1] == 'list':
 			peak_list = open(path).readlines()
 			if path.split('/')[-1] == 'hmqc.list':
@@ -1473,7 +1463,7 @@ class methyl_dialog(tkutil.Dialog, tkutil.Stoppable):
 # 
 	def parse_peak_line(self, line, dim):
 
-		fields = string.split(line, None, dim + 1)
+		fields = line.split(None, dim + 1)
 		if len(fields) < dim + 1:
 			return None
 
@@ -1583,20 +1573,20 @@ class directory_field:
 	def __init__(self, parent, title, cache_name,browse_button = 1, save = 0, width = 20):
 		self.title = title
 		self.cache_name = cache_name
-		self.frame = Tkinter.Frame(parent)
+		self.frame = tk.Frame(parent)
 		e = tkutil.entry_field(self.frame, title, '', width)
 		self.entry = e
 		self.variable = e.variable
 		e.frame.pack(side = 'left')
 		if browse_button:
 			self.save = save
-			b = Tkinter.Button(self.frame, text = "Browse ...", command = self.file_browse_cb)
+			b = tk.Button(self.frame, text = "Browse ...", command = self.file_browse_cb)
 			b.pack(side = 'left')
 	# --------------------------------------------------------------------------
 	# Pop up a file browsing dialog and set the variable to the chosen file.
 	#
 	def file_browse_cb(self):
-		path = tkFileDialog.askdirectory()
+		path = tk.filedialog.askdirectory()
 		if path:
 			self.variable.set(path)
 			self.entry.show_end()
