@@ -22,6 +22,7 @@ import string
 # Last updates: August 5, 2022
 #
 #
+# Copr 2022 St Jude Children's Research Hospital
 # ------------------------------------------------------------------------------
 #
 A_dict = {'C': 'CYS', 'D': 'ASP', 'S': 'SER', 'Q': 'GLN', 'K': 'LYS',
