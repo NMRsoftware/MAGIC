@@ -25,6 +25,7 @@ import string
 # Last updates: August 5, 2022
 #
 #
+# Copr 2022 St Jude Children's Research Hospital
 # ------------------------------------------------------------------------------
 #
 AAA_dict = {"ALA": "A", "ARG": "R", "ASN": "N", "ASP": "D", "CYS": "C",
