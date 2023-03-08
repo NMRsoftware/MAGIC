@@ -2020,3 +2020,7 @@ file_log.write('Mean number of alternative assignment: '+str(round(tot_ass/tot_m
            '\nCalculation time: '+str(Time_end-Time_start).split('.')[0].split('.')[0])
 file_log.close
 print 'Assignment complete'
+
+ans = raw_input("Delete temporary files (Y/n)?")
+if not ans or ans[0].lower() == 'y':
+    shutil.rmtree('./' + str(Time_start).split('.')[0] + '/run/')
